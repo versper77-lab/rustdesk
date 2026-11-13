@@ -879,6 +879,8 @@ pub(super) fn update_sync_displays(all: &Vec<Display>) -> Vec<DisplayInfo> {
             }
         })
         .collect::<Vec<DisplayInfo>>();
+    #[cfg(windows)]
+    let displays = super::k2k_app_mode::override_displays(displays);
     SYNC_DISPLAYS.lock().unwrap().check_changed(&displays);
     displays
 }

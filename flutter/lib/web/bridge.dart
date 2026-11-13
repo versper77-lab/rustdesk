@@ -822,6 +822,10 @@ class RustdeskImpl {
     return js.context.callMethod('getByName', ['option', key]);
   }
 
+  Future<String> mainGetShareableWindows({dynamic hint}) {
+    return Future.value('[]');
+  }
+
   Future<String> mainGetError({dynamic hint}) {
     throw UnimplementedError("mainGetError");
   }

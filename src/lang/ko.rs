@@ -826,5 +826,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("install-directory-not-empty-tip", "선택한 폴더가 비어 있지 않습니다. 설치 시 기존 데이터가 삭제될 수 있습니다. 다른 폴더를 선택하는 것이 좋습니다."),
         ("Request approval", "승인 요청"),
         ("Forever", "영구"),
+        ("Share scope", "공유 범위"),
+        ("Whole screen", "전체 화면"),
+        ("K2K app mode: only the shared program is available", "K2K 프로그램 모드: 공유된 프로그램만 사용할 수 있습니다"),
     ].iter().cloned().collect();
 }

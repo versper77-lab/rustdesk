@@ -216,7 +216,8 @@ impl WindowCapture {
             let device: ID3D11Device = device.ok_or_else(|| Error::from(E_FAIL))?;
             let context: ID3D11DeviceContext = context.ok_or_else(|| Error::from(E_FAIL))?;
             let dxgi: IDXGIDevice = device.cast()?;
-            let winrt_device: IDirect3DDevice = CreateDirect3D11DeviceFromDXGIDevice(&dxgi)?.cast()?;
+            let winrt_device: IDirect3DDevice =
+                CreateDirect3D11DeviceFromDXGIDevice(&dxgi)?.cast()?;
             let interop =
                 windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
             let item: GraphicsCaptureItem = interop.CreateForWindow(hwnd)?;

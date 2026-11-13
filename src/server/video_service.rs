@@ -459,6 +459,10 @@ fn get_capturer_monitor(
             return super::wayland::get_capturer_for_display(current);
         }
     }
+    #[cfg(windows)]
+    if super::k2k_app_mode::is_active() {
+        return super::k2k_app_mode::get_capturer();
+    }
 
     let mut displays = Display::all()?;
     let ndisplay = displays.len();

@@ -1234,6 +1234,9 @@ pub fn handle_pointer_(evt: &PointerDeviceEvent, conn: i32) {
     if !active_mouse_(conn) {
         return;
     }
+    if super::k2k_app_mode::is_active() {
+        return;
+    }
 
     if EXITING.load(Ordering::SeqCst) {
         return;
@@ -1278,6 +1281,10 @@ pub fn handle_mouse_(
 
 pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
     if !active_mouse_(conn) {
+        return;
+    }
+    #[cfg(windows)]
+    if !super::k2k_app_mode::allow_mouse(evt) {
         return;
     }
 
@@ -2486,6 +2493,10 @@ fn is_legacy_mode(evt: &KeyEvent) -> bool {
 
 pub fn handle_key_(evt: &KeyEvent) {
     if EXITING.load(Ordering::SeqCst) {
+        return;
+    }
+    #[cfg(windows)]
+    if !super::k2k_app_mode::allow_key(evt) {
         return;
     }
 

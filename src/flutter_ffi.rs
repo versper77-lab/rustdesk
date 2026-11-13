@@ -1017,6 +1017,13 @@ pub fn main_get_option_sync(key: String) -> SyncReturn<String> {
     SyncReturn(get_option(key))
 }
 
+pub fn main_get_shareable_windows() -> String {
+    #[cfg(windows)]
+    return crate::server::k2k_app_mode::list_windows_json();
+    #[cfg(not(windows))]
+    return "[]".to_owned();
+}
+
 pub fn main_get_error() -> String {
     get_error()
 }

@@ -35,6 +35,7 @@ use video_service::VideoSource;
 use crate::ipc::Data;
 
 pub mod audio_service;
+pub mod k2k_app_mode;
 #[cfg(target_os = "windows")]
 pub mod terminal_helper;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
