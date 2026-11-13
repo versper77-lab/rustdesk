@@ -1,0 +1,28 @@
+# Fast Windows type-check for K2K-only Windows code (minutes instead of a full build).
+name: K2K wincheck
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - k2k
+      - "k2k-*"
+    paths:
+      - "src/platform/k2k_window.rs"
+      - "tools/k2k-wincheck/**"
+      - ".github/workflows/k2k-wincheck.yml"
+
+jobs:
+  check:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: "1.75"
+      - name: Check
+        shell: bash
+        run: |
+          cp Cargo.lock tools/k2k-wincheck/Cargo.lock
+          cargo check --manifest-path tools/k2k-wincheck/Cargo.toml
