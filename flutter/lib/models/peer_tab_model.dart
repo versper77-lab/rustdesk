@@ -44,7 +44,9 @@ class PeerTabModel with ChangeNotifier {
     !(bind.isDisableAb() || bind.isDisableAccount()),
     !(bind.isDisableGroupPanel() || bind.isDisableAccount()),
   ]);
-  final List<bool> _isVisible = List.filled(maxTabCount, true, growable: false);
+  // K2K: address book and accessible devices need an account server, so they start hidden.
+  final List<bool> _isVisible =
+      List.from([true, true, true, false, false], growable: false);
   List<bool> get isVisibleEnabled => () {
         final list = _isVisible.toList();
         for (int i = 0; i < maxTabCount; i++) {
