@@ -54,6 +54,26 @@ def fix(block):
     return out
 
 win = [l.replace("name: rustdesk-unsigned-windows-${{ matrix.job.arch }}", "name: K2K-windows-${{ matrix.job.arch }}-portable") for l in fix(win)]
+ios = fix(job_block("build-rustdesk-ios"))
+ios = [l for l in ios if not l.lstrip().startswith("#")]
+while ios and ios[-1].strip() == "":
+    ios.pop()
+ios += [
+    "",
+    "      - name: Package unsigned K2K ipa",
+    "        shell: bash",
+    "        run: |",
+    "          cd flutter/build/ios/archive/Runner.xcarchive/Products/Applications",
+    "          mkdir -p Payload",
+    "          cp -R Runner.app Payload/",
+    "          zip -qr \"$GITHUB_WORKSPACE/K2K-unsigned.ipa\" Payload",
+    "",
+    "      - name: Upload K2K ipa",
+    "        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+    "        with:",
+    "          name: K2K-ios-unsigned-ipa",
+    "          path: K2K-unsigned.ipa",
+]
 android = fix(android) + [
     "",
     "      - name: Upload K2K apk",
@@ -66,7 +86,7 @@ android = fix(android) + [
 header = [
     "# Generated from flutter-build.yml by tools/gen_k2k_workflow.py (K2K fork).",
     "# Builds only Windows x64 (portable folder) and Android arm64 (debug-signed apk)",
-    "# and uploads them as Actions artifacts. Signing and GitHub releases are skipped.",
+    "# and iOS (unsigned ipa for sideloading), uploaded as Actions artifacts. Signing and GitHub releases are skipped.",
     "name: K2K build",
     "",
     "on:",
@@ -80,5 +100,5 @@ header = [
     "  cancel-in-progress: true",
     "",
 ]
-out = header + env + ["jobs:"] + fix(bridge) + [""] + fix(topmost) + [""] + win + [""] + android + [""]
+out = header + env + ["jobs:"] + fix(bridge) + [""] + fix(topmost) + [""] + win + [""] + android + [""] + ios + [""]
 open(sys.argv[2], "w", encoding="utf-8").write("\n".join(out))
