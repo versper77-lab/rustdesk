@@ -3,8 +3,8 @@
 //! Enabled when the host option `k2k-app-target` holds an executable name
 //! (e.g. `notepad.exe`). While enabled, the peer sees a single "display" that
 //! is exactly that window, input outside it is dropped, system shortcuts are
-//! blocked, and non-desktop sessions (file transfer, terminal, port forward,
-//! camera) and the clipboard are refused. If the window cannot be found the
+//! blocked, and terminal, port-forward and camera sessions are refused (file
+//! transfer and clipboard stay available). If the window cannot be found the
 //! peer gets a black placeholder, never the desktop.
 
 use hbb_common::config::Config;

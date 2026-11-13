@@ -2346,7 +2346,7 @@ impl Connection {
     }
 
     fn clipboard_enabled(&self) -> bool {
-        self.clipboard && !self.disable_clipboard && !super::k2k_app_mode::is_active()
+        self.clipboard && !self.disable_clipboard
     }
 
     #[inline]
@@ -2362,7 +2362,7 @@ impl Connection {
 
     #[cfg(any(target_os = "windows", feature = "unix-file-copy-paste"))]
     fn file_transfer_enabled(&self) -> bool {
-        self.file && self.enable_file_transfer && !super::k2k_app_mode::is_active()
+        self.file && self.enable_file_transfer
     }
 
     #[cfg(feature = "unix-file-copy-paste")]
@@ -2921,7 +2921,12 @@ impl Connection {
             if !self.check_id_whitelist().await {
                 return false;
             }
-            if super::k2k_app_mode::is_active() && Self::login_scope_kind(&lr) != "remote" {
+            if super::k2k_app_mode::is_active()
+                && matches!(
+                    Self::login_scope_kind(&lr),
+                    "terminal" | "port_forward" | "view_camera"
+                )
+            {
                 self.send_login_error("K2K app mode: only the shared program is available")
                     .await;
                 sleep(1.).await;
