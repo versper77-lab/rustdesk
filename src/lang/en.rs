@@ -300,5 +300,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_key_limit", "This key has reached its device limit"),
         ("k2k_key_too_many", "Too many attempts. Try again in 10 minutes"),
         ("k2k_key_failed", "Could not reach the server. Try again later"),
+        ("k2k_shortcut_blocked", "System shortcuts such as Win and Alt+Tab are blocked while a single program is shared"),
+        ("k2k_my_shortcuts", "My shortcuts"),
+        ("k2k_add_shortcut", "Add shortcut"),
+        ("k2k_confirm_disconnect", "Disconnect from the remote device?"),
+        ("k2k_confirm_restart", "Restart the remote device? An installed K2K reconnects after the reboot."),
+        ("k2k_power_off", "Power off"),
+        ("k2k_confirm_power_off", "Power off the remote device? It can't be turned back on remotely."),
     ].iter().cloned().collect();
 }

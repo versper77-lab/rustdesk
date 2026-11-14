@@ -2108,6 +2108,12 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
     }
 }
 
+pub fn session_power_off_remote_device(session_id: SessionID) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.k2k_power_off_remote_device();
+    }
+}
+
 pub fn session_restart_remote_device(session_id: SessionID) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.restart_remote_device();

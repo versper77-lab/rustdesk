@@ -1387,6 +1387,11 @@ class RustdeskImpl {
         () => js.context.callMethod('setByName', ['send_mouse', msg]));
   }
 
+  Future<void> sessionPowerOffRemoteDevice(
+      {required UuidValue sessionId, dynamic hint}) {
+    return Future.value();
+  }
+
   Future<void> sessionRestartRemoteDevice(
       {required UuidValue sessionId, dynamic hint}) {
     return Future(() => js.context.callMethod('setByName', ['restart']));

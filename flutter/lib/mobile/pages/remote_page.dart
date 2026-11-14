@@ -8,6 +8,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/mobile/widgets/floating_mouse.dart';
 import 'package:flutter_hbb/mobile/widgets/floating_mouse_widgets.dart';
 import 'package:flutter_hbb/mobile/widgets/gesture_help.dart';
+import 'package:flutter_hbb/mobile/widgets/k2k_remote_bar.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:flutter_svg/svg.dart';
@@ -122,6 +123,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    k2kApplyRemoteOrientation();
     gFFI.ffiModel.updateEventListener(sessionId, widget.id);
     gFFI.start(
       widget.id,
@@ -197,6 +199,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     // pop; the `sessionClose` in `gFFI.close()` becomes a no-op once removed.
     unawaited(bind.sessionClose(sessionId: sessionId));
     // https://github.com/flutter/flutter/issues/64935
+    k2kResetOrientation();
     super.dispose();
     gFFI.dialogManager.hideMobileActionsOverlay(store: false);
     gFFI.inputModel.listenToMouse(false);
@@ -485,8 +488,41 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   Widget _bottomWidget() => _showGestureHelp
       ? getGestureHelp()
       : (_showBar && gFFI.ffiModel.pi.displays.isNotEmpty
-          ? getBottomAppBar()
+          ? _k2kBottomBar()
           : Offstage());
+
+  Widget _k2kBottomBar() {
+    final ffiModel = Provider.of<FfiModel>(context);
+    final showInput =
+        !(isWebDesktop || ffiModel.viewOnly || !ffiModel.keyboard);
+    return K2kRemoteBar(
+      showInput: showInput,
+      touchMode: gFFI.ffiModel.touchMode,
+      isPeerAndroid: gFFI.ffiModel.isPeerAndroid,
+      onKeyboard: openKeyboard,
+      onMouse: gFFI.ffiModel.isPeerAndroid
+          ? () => gFFI.dialogManager.toggleMobileActionsOverlay(ffi: gFFI)
+          : () => setState(() => _showGestureHelp = !_showGestureHelp),
+      onShortcuts: () {
+        setState(() => _showEdit = false);
+        showK2kShortcutSheet(context);
+      },
+      onDisplay: () {
+        setState(() => _showEdit = false);
+        showOptions(context, widget.id, gFFI.dialogManager);
+      },
+      onMore: () {
+        setState(() => _showEdit = false);
+        showK2kMoreSheet(context,
+            id: widget.id,
+            onChat: isWeb ? null : () => onPressedTextChat(widget.id),
+            onDisconnect: () => clientClose(sessionId, gFFI));
+      },
+      onCollapse: gFFI.ffiModel.waitForFirstImage.isTrue
+          ? null
+          : () => setState(() => _showBar = !_showBar),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -995,7 +1031,7 @@ class KeyHelpTools extends StatefulWidget {
 }
 
 class _KeyHelpToolsState extends State<KeyHelpTools> {
-  var _more = true;
+  var _more = false;
   var _fn = false;
   var _pin = false;
   final _keyboardVisibilityController = KeyboardVisibilityController();
