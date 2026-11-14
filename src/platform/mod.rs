@@ -14,6 +14,9 @@ pub mod win_device;
 #[cfg(windows)]
 pub mod k2k_window;
 
+#[cfg(windows)]
+pub mod k2k_local_input;
+
 #[cfg(target_os = "macos")]
 pub mod macos;
 

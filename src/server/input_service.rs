@@ -1287,6 +1287,10 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
     if !super::k2k_app_mode::allow_mouse(evt) {
         return;
     }
+    #[cfg(windows)]
+    if !super::k2k_local_priority::allow_mouse(evt) {
+        return;
+    }
 
     if EXITING.load(Ordering::SeqCst) {
         return;
@@ -2497,6 +2501,10 @@ pub fn handle_key_(evt: &KeyEvent) {
     }
     #[cfg(windows)]
     if !super::k2k_app_mode::allow_key(evt) {
+        return;
+    }
+    #[cfg(windows)]
+    if !super::k2k_local_priority::allow_key(evt) {
         return;
     }
 

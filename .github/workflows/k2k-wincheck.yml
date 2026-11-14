@@ -9,6 +9,7 @@ on:
       - "k2k-*"
     paths:
       - "src/platform/k2k_window.rs"
+      - "src/platform/k2k_local_input.rs"
       - "tools/k2k-wincheck/**"
       - ".github/workflows/k2k-wincheck.yml"
 
