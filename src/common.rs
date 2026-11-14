@@ -2507,9 +2507,20 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 }
 
 const K2K_APP_NAME: &str = "K2K";
+const K2K_SERVER: &str = "217.142.143.66";
+const K2K_SERVER_KEY: &str = "6GqkSoKMqz3vwMczEZVJvNKK69ON0Pb/FQodvRDkQjk=";
 
 fn apply_k2k_branding() {
     *config::APP_NAME.write().unwrap() = K2K_APP_NAME.to_owned();
+    // Defaults only: a server set by the user in Settings still wins.
+    let mut defaults = config::DEFAULT_SETTINGS.write().unwrap();
+    for (k, v) in [
+        ("custom-rendezvous-server", K2K_SERVER),
+        ("relay-server", K2K_SERVER),
+        ("key", K2K_SERVER_KEY),
+    ] {
+        defaults.entry(k.to_owned()).or_insert_with(|| v.to_owned());
+    }
 }
 
 pub fn load_custom_client() {
