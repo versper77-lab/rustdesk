@@ -36,6 +36,7 @@ use crate::ipc::Data;
 
 pub mod audio_service;
 pub mod k2k_app_mode;
+pub mod k2k_conn_log;
 #[cfg(target_os = "windows")]
 pub mod terminal_helper;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

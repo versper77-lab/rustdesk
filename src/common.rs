@@ -2521,6 +2521,19 @@ fn apply_k2k_branding() {
     ] {
         defaults.entry(k.to_owned()).or_insert_with(|| v.to_owned());
     }
+    drop(defaults);
+    // Quick-support build: an executable whose name contains "support" only accepts
+    // incoming sessions and shows just the ID/password (e.g. K2K-support.exe).
+    let is_support_exe = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_lowercase()))
+        .map_or(false, |s| s.contains("support"));
+    if is_support_exe {
+        config::HARD_SETTINGS
+            .write()
+            .unwrap()
+            .insert("conn-type".to_owned(), "incoming".to_owned());
+    }
 }
 
 pub fn load_custom_client() {

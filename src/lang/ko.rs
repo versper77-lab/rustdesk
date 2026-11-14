@@ -829,5 +829,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Share scope", "공유 범위"),
         ("Whole screen", "전체 화면"),
         ("K2K app mode: only the shared program is available", "K2K 프로그램 모드: 공유된 프로그램만 사용할 수 있습니다"),
+        ("New K2K version available", "새 K2K 버전이 있습니다"),
+        ("Connection log", "접속 기록"),
+        ("No connections yet", "아직 접속 기록이 없습니다"),
+        ("Remote desktop", "원격 제어"),
     ].iter().cloned().collect();
 }

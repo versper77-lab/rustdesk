@@ -12,7 +12,9 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/common/widgets/k2k_update.dart';
 import 'package:flutter_hbb/desktop/widgets/k2k_app_share.dart';
+import 'package:flutter_hbb/desktop/widgets/k2k_connection_log.dart';
 import 'package:flutter_hbb/desktop/widgets/update_progress.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
@@ -94,6 +96,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
       if (!isOutgoingOnly && isWindows) const K2kAppShareCard(),
+      if (!isOutgoingOnly) const K2kConnectionLogLink(),
+      const K2kUpdateCard(),
       FutureBuilder<Widget>(
         future: Future.value(
             Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),

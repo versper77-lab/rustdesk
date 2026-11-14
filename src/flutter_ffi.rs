@@ -1017,6 +1017,17 @@ pub fn main_get_option_sync(key: String) -> SyncReturn<String> {
     SyncReturn(get_option(key))
 }
 
+pub fn main_get_connection_log() -> String {
+    #[cfg(not(target_os = "ios"))]
+    return crate::server::k2k_conn_log::recent_json();
+    #[cfg(target_os = "ios")]
+    return "[]".to_owned();
+}
+
+pub fn main_get_custom_build_no() -> SyncReturn<String> {
+    SyncReturn(option_env!("K2K_BUILD").unwrap_or("0").to_owned())
+}
+
 pub fn main_get_shareable_windows() -> String {
     #[cfg(windows)]
     return crate::server::k2k_app_mode::list_windows_json();

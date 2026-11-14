@@ -822,6 +822,14 @@ class RustdeskImpl {
     return js.context.callMethod('getByName', ['option', key]);
   }
 
+  Future<String> mainGetConnectionLog({dynamic hint}) {
+    return Future.value('[]');
+  }
+
+  String mainGetCustomBuildNo({dynamic hint}) {
+    return '0';
+  }
+
   Future<String> mainGetShareableWindows({dynamic hint}) {
     return Future.value('[]');
   }

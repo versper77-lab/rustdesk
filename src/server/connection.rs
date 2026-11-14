@@ -1906,6 +1906,7 @@ impl Connection {
         }
         self.lr.trusted_device_v2_token.clear();
         self.authorized = true;
+        super::k2k_conn_log::record(&self.lr, &self.ip, Self::login_scope_kind(&self.lr));
         self.unauthorized_id = None;
         // One-time means gone once it has let a peer in, not once that peer
         // leaves. This session's later logins come in on the password the

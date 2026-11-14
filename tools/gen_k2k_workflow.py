@@ -34,6 +34,7 @@ env = src[env_start:env_end]
 env = [l for l in env if "inputs.publish-update-metadata" not in l]
 env = [l.replace('"${{ inputs.upload-artifact }}"', '"true"') for l in env]
 env = [l.replace('TAG_NAME: "${{ inputs.upload-tag }}"', 'TAG_NAME: "k2k"') for l in env]
+env.insert(1, '  K2K_BUILD: "${{ github.run_number }}"')
 
 bridge = job_block("generate-bridge")
 topmost = drop_matrix_entries(job_block("build-RustDeskTempTopMostWindow"), "platform: x64")
@@ -100,5 +101,37 @@ header = [
     "  cancel-in-progress: true",
     "",
 ]
-out = header + env + ["jobs:"] + fix(bridge) + [""] + fix(topmost) + [""] + win + [""] + android + [""] + ios + [""]
+release = [
+    "  k2k-release:",
+    "    name: Publish K2K release",
+    "    needs: [build-for-windows-flutter, build-rustdesk-android, build-rustdesk-ios]",
+    "    if: ${{ always() && github.ref == 'refs/heads/k2k' && needs.build-for-windows-flutter.result == 'success' && needs.build-rustdesk-android.result == 'success' }}",
+    "    runs-on: ubuntu-22.04",
+    "    permissions:",
+    "      contents: write",
+    "    steps:",
+    "      - name: Download artifacts",
+    "        uses: actions/download-artifact@v4",
+    "        with:",
+    "          pattern: K2K-*",
+    "          path: dl",
+    "      - name: Package files",
+    "        shell: bash",
+    "        run: |",
+    "          mkdir -p out",
+    "          (cd dl/K2K-windows-x86_64-portable && zip -qr ../../out/K2K-windows-x64.zip .)",
+    "          cp -r dl/K2K-windows-x86_64-portable support && mv support/rustdesk.exe support/K2K-support.exe",
+    "          (cd support && zip -qr ../out/K2K-support-windows-x64.zip .)",
+    "          cp dl/K2K-android-aarch64-apk/*.apk out/K2K-android.apk",
+    "          if ls dl/K2K-ios-unsigned-ipa/*.ipa >/dev/null 2>&1; then cp dl/K2K-ios-unsigned-ipa/*.ipa out/K2K-ios-unsigned.ipa; fi",
+    "          ls -la out",
+    "      - name: Create release",
+    "        shell: bash",
+    "        env:",
+    "          GH_TOKEN: ${{ github.token }}",
+    "        run: |",
+    "          TAG=k2k-b${{ github.run_number }}",
+    "          gh release create \"$TAG\" out/* --repo \"$GITHUB_REPOSITORY\" --target \"$GITHUB_SHA\" --title \"K2K build ${{ github.run_number }}\" --notes \"K2K build ${{ github.run_number }} ($GITHUB_SHA). Windows: unzip and run rustdesk.exe. Android: install apk. iOS: unsigned ipa for sideloading.\" --latest",
+]
+out = header + env + ["jobs:"] + fix(bridge) + [""] + fix(topmost) + [""] + win + [""] + android + [""] + ios + [""] + release + [""]
 open(sys.argv[2], "w", encoding="utf-8").write("\n".join(out))
