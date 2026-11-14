@@ -33,72 +33,66 @@ Future<Map<String, dynamic>?> _ask(FFI ffi, {String? pick}) async {
 }
 
 void showK2kPickWindowDialog(FFI ffi) {
+  Map<String, dynamic>? data;
+  var loading = true;
+  var busy = false;
+  var started = false;
+  var open = true;
   ffi.dialogManager.show((setState, close, context) {
-    return _PickBody(ffi: ffi, close: close);
-  });
-}
-
-class _PickBody extends StatefulWidget {
-  final FFI ffi;
-  final VoidCallback close;
-  const _PickBody({required this.ffi, required this.close});
-
-  @override
-  State<_PickBody> createState() => _PickBodyState();
-}
-
-class _PickBodyState extends State<_PickBody> {
-  Map<String, dynamic>? _data;
-  bool _loading = true;
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final d = await _ask(widget.ffi);
-    if (!mounted) return;
-    setState(() {
-      _data = d;
-      _loading = false;
-    });
-  }
-
-  Future<void> _pick(String exe) async {
-    setState(() => _busy = true);
-    final d = await _ask(widget.ffi, pick: exe);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    final err = (d?['error'] ?? '').toString();
-    if (d == null) {
-      showToast(translate('k2k_pick_no_reply'));
-    } else if (err.isEmpty) {
-      showToast(translate(exe.isEmpty ? 'Whole screen' : 'k2k_pick_done'));
-      widget.close();
-    } else {
-      showToast(translate(err == 'not_allowed'
-          ? 'k2k_pick_not_allowed'
-          : 'k2k_pick_not_found'));
-      setState(() => _data = d);
+    void refresh() {
+      if (open) setState(() {});
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
+    void done() {
+      open = false;
+      close();
+    }
+
+    Future<void> load() async {
+      loading = true;
+      refresh();
+      data = await _ask(ffi);
+      loading = false;
+      refresh();
+    }
+
+    Future<void> pick(String exe) async {
+      busy = true;
+      refresh();
+      final d = await _ask(ffi, pick: exe);
+      busy = false;
+      final err = (d?['error'] ?? '').toString();
+      if (d == null) {
+        showToast(translate('k2k_pick_no_reply'));
+        refresh();
+      } else if (err.isEmpty) {
+        showToast(translate(exe.isEmpty ? 'Whole screen' : 'k2k_pick_done'));
+        done();
+      } else {
+        showToast(translate(err == 'not_allowed'
+            ? 'k2k_pick_not_allowed'
+            : 'k2k_pick_not_found'));
+        data = d;
+        refresh();
+      }
+    }
+
+    if (!started) {
+      started = true;
+      Future.microtask(load);
+    }
+
     Widget body;
-    if (_loading) {
+    if (loading) {
       body = const Center(child: CircularProgressIndicator());
-    } else if (_data == null) {
+    } else if (data == null) {
       body = Center(child: Text(translate('k2k_pick_no_reply')));
-    } else if (_data!['allowed'] != true) {
+    } else if (data!['allowed'] != true) {
       body = Center(child: Text(translate('k2k_pick_not_allowed')));
     } else {
-      final current = (_data!['current'] ?? '').toString().toLowerCase();
+      final current = (data!['current'] ?? '').toString().toLowerCase();
       final seen = <String>{};
-      final windows = ((_data!['windows'] as List?) ?? [])
+      final windows = ((data!['windows'] as List?) ?? [])
           .whereType<Map>()
           .where((w) => seen.add((w['exe'] ?? '').toString().toLowerCase()))
           .toList();
@@ -110,11 +104,10 @@ class _PickBodyState extends State<_PickBody> {
                     : Icons.web_asset_rounded,
                 color: MyTheme.accent),
             title: Text(title, overflow: TextOverflow.ellipsis),
-            subtitle: sub.isEmpty
-                ? null
-                : Text(sub, overflow: TextOverflow.ellipsis),
+            subtitle:
+                sub.isEmpty ? null : Text(sub, overflow: TextOverflow.ellipsis),
             selected: current == exe.toLowerCase(),
-            onTap: _busy ? null : () => _pick(exe),
+            onTap: busy ? null : () => pick(exe),
           );
       body = ListView(children: [
         tile(translate('Whole screen'), '', ''),
@@ -127,13 +120,10 @@ class _PickBodyState extends State<_PickBody> {
       title: Text(translate('k2k_pick_program')),
       content: SizedBox(width: 420, height: 360, child: body),
       actions: [
-        dialogButton('Refresh', onPressed: () {
-          setState(() => _loading = true);
-          _load();
-        }, isOutline: true),
-        dialogButton('Close', onPressed: widget.close),
+        dialogButton('Refresh', onPressed: load, isOutline: true),
+        dialogButton('Close', onPressed: done),
       ],
-      onCancel: widget.close,
+      onCancel: done,
     );
-  }
+  });
 }
