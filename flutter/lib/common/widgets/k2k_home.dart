@@ -175,6 +175,53 @@ class _K2kLocalPrioritySwitchState extends State<K2kLocalPrioritySwitch> {
   }
 }
 
+// Host option read by src/server/k2k_remote_pick.rs ("N" forbids it).
+const String kK2kRemotePickOption = 'k2k-remote-pick';
+
+/// K2K: switch for "the controller may choose which program is shared".
+class K2kRemotePickSwitch extends StatefulWidget {
+  const K2kRemotePickSwitch({Key? key}) : super(key: key);
+
+  @override
+  State<K2kRemotePickSwitch> createState() => _K2kRemotePickSwitchState();
+}
+
+class _K2kRemotePickSwitchState extends State<K2kRemotePickSwitch> {
+  bool _on = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _on = bind.mainGetOptionSync(key: kK2kRemotePickOption) != 'N';
+  }
+
+  Future<void> _set(bool v) async {
+    await bind.mainSetOption(key: kK2kRemotePickOption, value: v ? '' : 'N');
+    if (mounted) setState(() => _on = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 14, right: 8, bottom: 6),
+      child: Row(
+        children: [
+          Icon(Icons.ads_click_rounded, size: 16, color: MyTheme.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(translate('k2k_allow_remote_pick'),
+                style: const TextStyle(fontSize: 13)),
+          ),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(value: _on, onChanged: _set),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 IconData _platformIcon(String platform) {
   final p = platform.toLowerCase();
   if (p.contains('android')) return Icons.phone_android_rounded;

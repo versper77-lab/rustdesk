@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
+import 'package:flutter_hbb/common/widgets/k2k_pick_window.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
@@ -464,6 +465,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   }
 
   List<TTextMenu> v = [];
+  // K2K: choose which program the Windows host shares
+  if (isDefaultConn &&
+      pi.platform == kPeerPlatformWindows &&
+      perms['keyboard'] != false) {
+    v.add(TTextMenu(
+        child: Text(translate('k2k_pick_program')),
+        onPressed: () => showK2kPickWindowDialog(ffi)));
+  }
   // elevation
   if (isDefaultConn &&
       perms['keyboard'] != false &&

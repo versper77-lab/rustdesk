@@ -307,5 +307,11 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_confirm_restart", "Restart the remote device? An installed K2K reconnects after the reboot."),
         ("k2k_power_off", "Power off"),
         ("k2k_confirm_power_off", "Power off the remote device? It can't be turned back on remotely."),
+        ("k2k_pick_program", "Choose program"),
+        ("k2k_pick_done", "Now sharing only the chosen program"),
+        ("k2k_pick_no_reply", "The remote PC didn't answer. Update K2K on the remote PC"),
+        ("k2k_pick_not_allowed", "The remote PC doesn't allow choosing the program"),
+        ("k2k_pick_not_found", "That window wasn't found. Refresh and try again"),
+        ("k2k_allow_remote_pick", "Let the remote side choose the program"),
     ].iter().cloned().collect();
 }

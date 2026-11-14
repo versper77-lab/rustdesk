@@ -2474,6 +2474,9 @@ impl<T: InvokeUiSession> Remote<T> {
                     Some(misc::Union::FollowCurrentDisplay(d_idx)) => {
                         self.handler.set_current_display(d_idx);
                     }
+                    Some(misc::Union::K2kWindows(json)) => {
+                        crate::client::k2k_windows::store(&self.handler.get_id(), json);
+                    }
                     _ => {}
                 },
                 Some(message::Union::TestDelay(t)) => {

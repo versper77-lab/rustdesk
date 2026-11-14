@@ -571,6 +571,26 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(LoginConfigHandler::refresh()));
     }
 
+    pub fn k2k_request_windows(&self) {
+        let mut misc = Misc::new();
+        misc.set_k2k_windows_request(true);
+        let mut msg = Message::new();
+        msg.set_misc(misc);
+        self.send(Data::Message(msg));
+    }
+
+    pub fn k2k_take_windows(&self) -> String {
+        crate::client::k2k_windows::take(&self.get_id())
+    }
+
+    pub fn k2k_pick_window(&self, exe: String) {
+        let mut misc = Misc::new();
+        misc.set_k2k_pick_window(exe);
+        let mut msg = Message::new();
+        msg.set_misc(misc);
+        self.send(Data::Message(msg));
+    }
+
     pub fn k2k_power_off_remote_device(&self) {
         let mut misc = Misc::new();
         misc.set_k2k_power_off(true);

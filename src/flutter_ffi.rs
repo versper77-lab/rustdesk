@@ -2108,6 +2108,25 @@ pub fn session_send_mouse(session_id: SessionID, msg: String) {
     }
 }
 
+pub fn session_request_shareable_windows(session_id: SessionID) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.k2k_request_windows();
+    }
+}
+
+pub fn session_take_shareable_windows(session_id: SessionID) -> SyncReturn<String> {
+    let res = sessions::get_session_by_session_id(&session_id)
+        .map(|s| s.k2k_take_windows())
+        .unwrap_or_default();
+    SyncReturn(res)
+}
+
+pub fn session_pick_shared_window(session_id: SessionID, exe: String) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        session.k2k_pick_window(exe);
+    }
+}
+
 pub fn session_power_off_remote_device(session_id: SessionID) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.k2k_power_off_remote_device();

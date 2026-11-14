@@ -875,6 +875,11 @@ message Misc {
     uint64 request_cursor_data = 39;
     // K2K: power off the controlled device (needs the restart permission).
     bool k2k_power_off = 900;
+    // K2K: controller asks for the host's shareable windows / host replies with JSON.
+    bool k2k_windows_request = 901;
+    string k2k_windows = 902;
+    // K2K: controller picks the window to share ("" = whole screen).
+    string k2k_pick_window = 903;
   }
 }
 

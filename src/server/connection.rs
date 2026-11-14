@@ -3969,6 +3969,19 @@ impl Connection {
                             Some(Instant::now().into()),
                         );
                     }
+                    #[cfg(windows)]
+                    Some(misc::Union::K2kWindowsRequest(_)) => {
+                        if self.keyboard {
+                            self.send(super::k2k_remote_pick::windows_message("")).await;
+                        }
+                    }
+                    #[cfg(windows)]
+                    Some(misc::Union::K2kPickWindow(exe)) => {
+                        if self.keyboard {
+                            let err = super::k2k_remote_pick::pick(self.inner.id, &exe);
+                            self.send(super::k2k_remote_pick::windows_message(err)).await;
+                        }
+                    }
                     Some(misc::Union::K2kPowerOff(_)) => {
                         #[cfg(any(target_os = "linux", target_os = "windows"))]
                         if self.restart {
@@ -6791,6 +6804,8 @@ impl Default for PortableState {
 
 impl Drop for Connection {
     fn drop(&mut self) {
+        #[cfg(windows)]
+        super::k2k_remote_pick::on_connection_closed(self.inner.id);
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         self.release_pressed_modifiers();
 

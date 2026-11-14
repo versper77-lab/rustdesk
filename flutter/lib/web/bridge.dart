@@ -1387,6 +1387,21 @@ class RustdeskImpl {
         () => js.context.callMethod('setByName', ['send_mouse', msg]));
   }
 
+  Future<void> sessionRequestShareableWindows(
+      {required UuidValue sessionId, dynamic hint}) {
+    return Future.value();
+  }
+
+  String sessionTakeShareableWindows(
+      {required UuidValue sessionId, dynamic hint}) {
+    return '';
+  }
+
+  Future<void> sessionPickSharedWindow(
+      {required UuidValue sessionId, required String exe, dynamic hint}) {
+    return Future.value();
+  }
+
   Future<void> sessionPowerOffRemoteDevice(
       {required UuidValue sessionId, dynamic hint}) {
     return Future.value();
