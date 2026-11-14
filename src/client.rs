@@ -3312,6 +3312,14 @@ impl LoginConfigHandler {
                     option.show_my_cursor = BoolOption::No.into();
                 }
             }
+        } else if name == "k2k-detached-input" {
+            let on = config.options.get(&name).map_or(true, |v| v.is_empty());
+            if on {
+                config.options.insert(name.clone(), "Y".to_owned());
+            } else {
+                config.options.remove(&name);
+            }
+            option.k2k_detached_input = (if on { BoolOption::Yes } else { BoolOption::No }).into();
         } else if name == "show-my-cursor" {
             config.show_my_cursor.v = !config.show_my_cursor.v;
             option.show_my_cursor = if config.show_my_cursor.v {
@@ -3433,6 +3441,12 @@ impl LoginConfigHandler {
         if view_only || self.get_toggle_option("disable-clipboard") {
             msg.disable_clipboard = BoolOption::Yes.into();
         }
+        msg.k2k_detached_input = (if self.get_toggle_option("k2k-detached-input") {
+            BoolOption::Yes
+        } else {
+            BoolOption::No
+        })
+        .into();
         msg.supported_decoding = MessageField::some(self.get_supported_decoding());
         Some(msg)
     }

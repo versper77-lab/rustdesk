@@ -39,6 +39,8 @@ pub mod k2k_app_mode;
 pub mod k2k_conn_log;
 #[cfg(windows)]
 pub mod k2k_local_priority;
+#[cfg(windows)]
+pub mod k2k_detached;
 #[cfg(target_os = "windows")]
 pub mod terminal_helper;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

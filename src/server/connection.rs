@@ -2025,6 +2025,11 @@ impl Connection {
             platform_additions.insert("support_view_camera".into(), json!(true));
         }
 
+        #[cfg(windows)]
+        if super::k2k_app_mode::is_active() {
+            platform_additions.insert("k2k_app_mode".into(), json!(true));
+        }
+
         #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
         if !platform_additions.is_empty() {
             pi.platform_additions = serde_json::to_string(&platform_additions).unwrap_or("".into());
@@ -4936,6 +4941,8 @@ impl Connection {
 
     async fn update_options(&mut self, o: &OptionMessage) {
         log::info!("Option update: {:?}", o);
+        #[cfg(windows)]
+        super::k2k_detached::set_option(&o.k2k_detached_input);
         if let Ok(q) = o.image_quality.enum_value() {
             let image_quality;
             if let ImageQuality::NotSet = q {

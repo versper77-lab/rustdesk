@@ -89,6 +89,11 @@ mod imp {
         (None, PLACEHOLDER)
     }
 
+    /// Raw handle of the shared window, if it is open.
+    pub fn window_handle() -> Option<isize> {
+        target_hwnd().map(|h| h.0 as isize)
+    }
+
     /// Replaces the advertised display list with the shared window.
     pub fn override_displays(displays: Vec<DisplayInfo>) -> Vec<DisplayInfo> {
         if !super::is_active() {

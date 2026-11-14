@@ -1284,6 +1284,10 @@ pub fn handle_mouse_simulation_(evt: &MouseEvent, conn: i32) {
         return;
     }
     #[cfg(windows)]
+    if super::k2k_detached::handle_mouse(evt) {
+        return;
+    }
+    #[cfg(windows)]
     if !super::k2k_app_mode::allow_mouse(evt) {
         return;
     }
@@ -2497,6 +2501,10 @@ fn is_legacy_mode(evt: &KeyEvent) -> bool {
 
 pub fn handle_key_(evt: &KeyEvent) {
     if EXITING.load(Ordering::SeqCst) {
+        return;
+    }
+    #[cfg(windows)]
+    if super::k2k_detached::handle_key(evt) {
         return;
     }
     #[cfg(windows)]

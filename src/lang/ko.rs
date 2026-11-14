@@ -833,5 +833,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Connection log", "접속 기록"),
         ("No connections yet", "아직 접속 기록이 없습니다"),
         ("Remote desktop", "원격 제어"),
+        ("Detached control", "분리 조작 (본PC 마우스와 따로)"),
     ].iter().cloned().collect();
 }

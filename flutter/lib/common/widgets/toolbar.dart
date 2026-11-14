@@ -1061,6 +1061,21 @@ Future<List<TToggleMenu>> toolbarDisplayToggle(
   final sessionId = ffi.sessionId;
   final isDefaultConn = ffi.connType == ConnType.defaultConn;
 
+  // K2K: send input only to the shared program on the host
+  if (isDefaultConn &&
+      ffiModel.keyboard &&
+      pi.platformAdditions['k2k_app_mode'] == true) {
+    const k2kOption = 'k2k-detached-input';
+    v.add(TToggleMenu(
+        value: bind.sessionGetToggleOptionSync(
+            sessionId: sessionId, arg: k2kOption),
+        onChanged: (value) async {
+          if (value == null) return;
+          await bind.sessionToggleOption(
+              sessionId: sessionId, value: k2kOption);
+        },
+        child: Text(translate('Detached control'))));
+  }
   // show quality monitor
   final option = 'show-quality-monitor';
   v.add(TToggleMenu(
