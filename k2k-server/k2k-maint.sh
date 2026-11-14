@@ -6,7 +6,8 @@
 set -u
 cd /opt/k2k-server || exit 1
 
-for c in hbbs hbbr k2k-keys caddy; do
+for c in hbbs hbbr k2k-keys caddy memos; do
+  grep -q "container_name: $c" docker-compose.yml || continue
   if [ "$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" != "true" ]; then
     docker compose up -d >/dev/null 2>&1
     echo "$(date -Is) restarted $c" >> status.log
@@ -14,7 +15,7 @@ for c in hbbs hbbr k2k-keys caddy; do
 done
 
 mkdir -p backups
-tar -czf "backups/k2k-data-$(date +%F).tgz" data keys 2>/dev/null
+tar -czf "backups/k2k-data-$(date +%F).tgz" data keys memos 2>/dev/null
 ls -1t backups/k2k-data-*.tgz | tail -n +15 | xargs -r rm -f
 
 peers=$(test -f data/db_v2.sqlite3 && echo ok)

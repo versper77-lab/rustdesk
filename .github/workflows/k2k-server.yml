@@ -43,8 +43,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp k2k-server/k2k-keys.py k2k-server/k2k-maint.sh k2k-server/install-keys.sh .
-          files="hbbs k2k-keys.py k2k-maint.sh install-keys.sh"
+          cp k2k-server/k2k-keys.py k2k-server/k2k-maint.sh k2k-server/install-keys.sh k2k-server/install-memos.sh .
+          files="hbbs k2k-keys.py k2k-maint.sh install-keys.sh install-memos.sh"
           if gh release view k2k-server >/dev/null 2>&1; then
             gh release upload k2k-server $files --clobber
           else
