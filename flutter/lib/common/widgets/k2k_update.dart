@@ -64,31 +64,52 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
       return const SizedBox.shrink();
     }
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      margin: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 6),
       decoration: BoxDecoration(
         color: MyTheme.accent.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: MyTheme.accent.withOpacity(0.6)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.system_update, color: MyTheme.accent, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '${translate('New K2K version available')} (b$_current → b$latest)',
-              style: const TextStyle(fontSize: 13),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.system_update, color: MyTheme.accent, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  translate('New K2K version available'),
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => setState(() => _closed = true),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close, size: 16),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 26, top: 2),
+            child: Text('b$_current → b$latest',
+                style: TextStyle(
+                    fontSize: 12, color: Theme.of(context).hintColor)),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: Text(translate('Download')),
+              onPressed: () => launchUrl(Uri.parse(kK2kDownloadPage),
+                  mode: LaunchMode.externalApplication),
             ),
-          ),
-          TextButton(
-            onPressed: () => launchUrl(Uri.parse(kK2kDownloadPage),
-                mode: LaunchMode.externalApplication),
-            child: Text(translate('Download')),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 16),
-            onPressed: () => setState(() => _closed = true),
           ),
         ],
       ),
