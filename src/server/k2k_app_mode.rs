@@ -40,7 +40,11 @@ mod imp {
         privacy_mode::INVALID_PRIVACY_MODE_CONN_ID,
     };
     use base::message_proto::{key_event, ControlKey, DisplayInfo, KeyEvent, MouseEvent};
-    use hbb_common::{log, protobuf::EnumOrUnknown, ResultType};
+    use hbb_common::{
+        log,
+        protobuf::{Enum, EnumOrUnknown},
+        ResultType,
+    };
     #[cfg(feature = "vram")]
     use scrap::AdapterDevice;
     use scrap::{Frame, PixelBuffer, TraitCapturer};
