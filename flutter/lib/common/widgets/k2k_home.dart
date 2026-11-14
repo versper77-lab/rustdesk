@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 // Host option read by src/server/k2k_local_priority.rs ("N" turns it off).
@@ -299,6 +303,187 @@ class _K2kFavoritesStripState extends State<K2kFavoritesStrip> {
           ],
         );
       }),
+    );
+  }
+}
+
+// K2K key service on the K2K server (see k2k-server/k2k-keys.py).
+const String kK2kKeyService = 'https://217-142-143-66.sslip.io';
+const String kK2kLicenseKeyOption = 'k2k-license-key';
+
+enum _KeyState { unknown, ok, missing, disabled }
+
+/// K2K: asks for a K2K key until this device is activated on the server.
+/// Only activated devices can receive connections once the server lock is on.
+class K2kKeyCard extends StatefulWidget {
+  const K2kKeyCard({Key? key}) : super(key: key);
+
+  @override
+  State<K2kKeyCard> createState() => _K2kKeyCardState();
+}
+
+class _K2kKeyCardState extends State<K2kKeyCard> {
+  _KeyState _state = _KeyState.unknown;
+  bool _busy = false;
+  String _error = '';
+  final _ctrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.text = bind.mainGetOptionSync(key: kK2kLicenseKeyOption);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    try {
+      final id = await bind.mainGetMyId();
+      if (id.isEmpty) return;
+      final resp = await http
+          .get(Uri.parse('$kK2kKeyService/api/status?id=${Uri.encodeQueryComponent(id)}'))
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode != 200) return;
+      final body = jsonDecode(resp.body);
+      if (body is! Map) return;
+      final next = body['registered'] != true
+          ? _KeyState.missing
+          : (body['active'] == true ? _KeyState.ok : _KeyState.disabled);
+      if (mounted) setState(() => _state = next);
+    } catch (e) {
+      debugPrint('K2K key status check failed: $e');
+    }
+  }
+
+  String _platformName() {
+    if (isWindows) return 'Windows';
+    if (isAndroid) return 'Android';
+    if (isMacOS) return 'macOS';
+    if (isLinux) return 'Linux';
+    if (isIOS) return 'iOS';
+    return '';
+  }
+
+  Future<void> _activate() async {
+    final key = _ctrl.text.trim();
+    if (key.isEmpty || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = '';
+    });
+    try {
+      final id = await bind.mainGetMyId();
+      String host = '';
+      try {
+        host = Platform.localHostname;
+      } catch (_) {}
+      final resp = await http
+          .post(Uri.parse('$kK2kKeyService/api/activate'),
+              headers: {'Content-Type': 'application/json', 'X-K2K': '1'},
+              body: jsonEncode({
+                'key': key,
+                'id': id,
+                'name': host,
+                'platform': _platformName(),
+              }))
+          .timeout(const Duration(seconds: 15));
+      Map body = {};
+      try {
+        final b = jsonDecode(resp.body);
+        if (b is Map) body = b;
+      } catch (_) {}
+      if (resp.statusCode == 200 && body['ok'] == true) {
+        await bind.mainSetOption(key: kK2kLicenseKeyOption, value: key);
+        if (mounted) setState(() => _state = _KeyState.ok);
+        showToast(translate('k2k_key_activated'));
+        return;
+      }
+      final err = (body['error'] ?? '').toString();
+      final msg = {
+            'invalid_key': 'k2k_key_invalid',
+            'disabled': 'k2k_key_disabled',
+            'limit': 'k2k_key_limit',
+            'too_many': 'k2k_key_too_many',
+          }[err] ??
+          'k2k_key_failed';
+      if (mounted) setState(() => _error = translate(msg));
+    } catch (e) {
+      if (mounted) setState(() => _error = translate('k2k_key_failed'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_state == _KeyState.unknown || _state == _KeyState.ok) {
+      return const SizedBox.shrink();
+    }
+    final disabled = _state == _KeyState.disabled;
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(_kRadius),
+        border: Border.all(
+            color: disabled
+                ? const Color(0xFFE5484D)
+                : MyTheme.accent.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(disabled ? Icons.block_rounded : Icons.vpn_key_rounded,
+                  size: 18,
+                  color: disabled ? const Color(0xFFE5484D) : MyTheme.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                    translate(disabled ? 'k2k_key_disabled' : 'Enter K2K key'),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(translate('k2k_key_tip'),
+              style: TextStyle(fontSize: 12, color: theme.hintColor)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _ctrl,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              hintText: 'K2K-XXXX-XXXX-XXXX',
+              isDense: true,
+            ),
+            onSubmitted: (_) => _activate(),
+          ),
+          if (_error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(_error,
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFFE5484D))),
+            ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _busy ? null : _activate,
+              child: Text(translate(_busy ? 'Waiting' : 'Register')),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

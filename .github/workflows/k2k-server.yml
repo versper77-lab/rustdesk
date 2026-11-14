@@ -1,0 +1,54 @@
+# Builds the K2K hbbs (upstream rustdesk-server + k2k-server/hbbs-k2k.patch)
+# and publishes it with the key service files as the `k2k-server` pre-release.
+name: K2K server
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - k2k
+      - "k2k-keys*"
+    paths:
+      - "k2k-server/**"
+      - ".github/workflows/k2k-server.yml"
+
+concurrency:
+  group: k2k-server
+  cancel-in-progress: true
+
+env:
+  RUSTDESK_SERVER_COMMIT: 680b60395ecf99a76f74a1d934e453bb6e5e0aa2
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Build hbbs
+        shell: bash
+        run: |
+          git clone https://github.com/rustdesk/rustdesk-server.git upstream
+          cd upstream
+          git checkout "$RUSTDESK_SERVER_COMMIT"
+          git submodule update --init --depth 1
+          git apply ../k2k-server/hbbs-k2k.patch
+          cargo build --release --bin hbbs
+          cp target/release/hbbs ../hbbs
+
+      - name: Publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp k2k-server/k2k-keys.py k2k-server/k2k-maint.sh k2k-server/install-keys.sh .
+          files="hbbs k2k-keys.py k2k-maint.sh install-keys.sh"
+          if gh release view k2k-server >/dev/null 2>&1; then
+            gh release upload k2k-server $files --clobber
+          else
+            gh release create k2k-server $files --prerelease --latest=false \
+              --title "K2K server" \
+              --notes "K2K hbbs (rustdesk-server ${RUSTDESK_SERVER_COMMIT} + k2k-server/hbbs-k2k.patch) and key service. Install: sudo bash install-keys.sh"
+          fi

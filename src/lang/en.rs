@@ -293,5 +293,12 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("android-logs-folder-tip", "Choose Android → media to store log files."),
         ("install-directory-not-empty-tip", "The selected folder is not empty. Installation may delete existing data. Consider choosing a different folder."),
         ("k2k_fav_empty_tip", "Right-click a recent device (long-press on a phone) and choose \"Add to Favorites\" to pin it here."),
+        ("k2k_key_tip", "Enter the key from your admin to register this device so it can receive remote connections."),
+        ("k2k_key_activated", "K2K key registered"),
+        ("k2k_key_invalid", "The key is not valid"),
+        ("k2k_key_disabled", "The K2K key for this device is disabled. Contact your admin."),
+        ("k2k_key_limit", "This key has reached its device limit"),
+        ("k2k_key_too_many", "Too many attempts. Try again in 10 minutes"),
+        ("k2k_key_failed", "Could not reach the server. Try again later"),
     ].iter().cloned().collect();
 }

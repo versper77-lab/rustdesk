@@ -1,0 +1,112 @@
+diff --git a/src/k2k_allow.rs b/src/k2k_allow.rs
+new file mode 100644
+index 0000000..38c025a
+--- /dev/null
++++ b/src/k2k_allow.rs
+@@ -0,0 +1,73 @@
++//! K2K: only devices activated with a K2K key may register.
++//!
++//! The K2K key service writes the activated device IDs to `k2k_allow.txt`
++//! (one per line) in the working directory. Enforcement is on while the file
++//! `k2k_enforce` exists, so it can be switched without restarting hbbs. Both
++//! files are re-read at most every few seconds.
++
++use once_cell::sync::Lazy;
++use std::{
++    collections::HashSet,
++    sync::RwLock,
++    time::{Duration, Instant, SystemTime},
++};
++
++const ALLOW_FILE: &str = "k2k_allow.txt";
++const ENFORCE_FILE: &str = "k2k_enforce";
++const RELOAD_EVERY: Duration = Duration::from_secs(3);
++
++struct State {
++    checked: Option<Instant>,
++    mtime: Option<SystemTime>,
++    enforce: bool,
++    ids: HashSet<String>,
++}
++
++static STATE: Lazy<RwLock<State>> = Lazy::new(|| {
++    RwLock::new(State {
++        checked: None,
++        mtime: None,
++        enforce: false,
++        ids: HashSet::new(),
++    })
++});
++
++fn reload_if_due() {
++    let due = STATE
++        .read()
++        .map(|s| s.checked.map_or(true, |t| t.elapsed() >= RELOAD_EVERY))
++        .unwrap_or(true);
++    if !due {
++        return;
++    }
++    let enforce = std::path::Path::new(ENFORCE_FILE).exists();
++    let mtime = std::fs::metadata(ALLOW_FILE).and_then(|m| m.modified()).ok();
++    let Ok(mut s) = STATE.write() else {
++        return;
++    };
++    s.checked = Some(Instant::now());
++    if s.enforce != enforce {
++        hbb_common::log::info!("K2K key enforcement: {}", if enforce { "on" } else { "off" });
++        s.enforce = enforce;
++    }
++    if s.mtime == mtime {
++        return;
++    }
++    s.mtime = mtime;
++    s.ids = std::fs::read_to_string(ALLOW_FILE)
++        .unwrap_or_default()
++        .lines()
++        .map(|l| l.trim().to_owned())
++        .filter(|l| !l.is_empty() && !l.starts_with('#'))
++        .collect();
++    hbb_common::log::info!("K2K allow list: {} devices", s.ids.len());
++}
++
++/// Whether `id` may register with this server.
++pub fn allowed(id: &str) -> bool {
++    reload_if_due();
++    STATE
++        .read()
++        .map(|s| !s.enforce || s.ids.contains(id))
++        .unwrap_or(true)
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 8da29a2..bf6eea2 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,3 +1,4 @@
++mod k2k_allow;
+ mod rendezvous_server;
+ pub use rendezvous_server::*;
+ pub mod common;
+diff --git a/src/rendezvous_server.rs b/src/rendezvous_server.rs
+index 84c0293..6947935 100644
+--- a/src/rendezvous_server.rs
++++ b/src/rendezvous_server.rs
+@@ -414,6 +414,9 @@ impl RendezvousServer {
+             match msg_in.union {
+                 Some(rendezvous_message::Union::RegisterPeer(rp)) => {
+                     // B registered
++                    if !crate::k2k_allow::allowed(&rp.id) {
++                        return Ok(());
++                    }
+                     if !rp.id.is_empty() && rp.id.len() <= MAX_PEER_ID_LEN {
+                         log::trace!("New peer registered: {:?} {:?}", &rp.id, &addr);
+                         self.update_addr(rp.id, addr, socket).await?;
+@@ -433,6 +436,9 @@ impl RendezvousServer {
+                         return Ok(());
+                     }
+                     let id = rk.id;
++                    if !crate::k2k_allow::allowed(&id) {
++                        return Ok(());
++                    }
+                     let ip = addr.ip().to_string();
+                     if id.len() < 6 || id.len() > MAX_PEER_ID_LEN {
+                         return send_rk_res(socket, addr, UUID_MISMATCH).await;

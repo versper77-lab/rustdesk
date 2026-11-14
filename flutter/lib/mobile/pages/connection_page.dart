@@ -89,6 +89,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
           if (!bind.isCustomClient() && !isIOS)
             Obx(() => _buildUpdateUI(stateGlobal.updateUrl.value)),
           const K2kUpdateCard(),
+          if (!isIOS) const K2kKeyCard(),
           _buildRemoteIDTextField(),
           const K2kFavoritesStrip().paddingSymmetric(horizontal: 16, vertical: 8),
         ])),

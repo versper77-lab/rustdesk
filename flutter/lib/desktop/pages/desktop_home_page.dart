@@ -98,6 +98,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         K2kMyDeviceCard(
             onEditPassword: () =>
                 DesktopSettingPage.switch2page(SettingsTabKey.safety)),
+      if (!isOutgoingOnly) const K2kKeyCard(),
       if (!isOutgoingOnly && isWindows) const K2kAppShareCard(),
       if (!isOutgoingOnly && isWindows) const K2kLocalPrioritySwitch(),
       if (!isOutgoingOnly) const K2kConnectionLogLink(),
