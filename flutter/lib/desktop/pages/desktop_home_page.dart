@@ -12,6 +12,7 @@ import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/connection_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_setting_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/common/widgets/k2k_home.dart';
 import 'package:flutter_hbb/common/widgets/k2k_update.dart';
 import 'package:flutter_hbb/desktop/widgets/k2k_app_share.dart';
 import 'package:flutter_hbb/desktop/widgets/k2k_connection_log.dart';
@@ -92,10 +93,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         alignment: Alignment.center,
         child: loadLogo(),
       ),
-      buildTip(context),
-      if (!isOutgoingOnly) buildIDBoard(context),
-      if (!isOutgoingOnly) buildPasswordBoard(context),
+      if (isOutgoingOnly) buildTip(context),
+      if (!isOutgoingOnly)
+        K2kMyDeviceCard(
+            onEditPassword: () =>
+                DesktopSettingPage.switch2page(SettingsTabKey.safety)),
       if (!isOutgoingOnly && isWindows) const K2kAppShareCard(),
+      if (!isOutgoingOnly && isWindows) const K2kLocalPrioritySwitch(),
       if (!isOutgoingOnly) const K2kConnectionLogLink(),
       const K2kUpdateCard(),
       FutureBuilder<Widget>(
@@ -135,7 +139,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
       child: Container(
-        width: isIncomingOnly ? 280.0 : 200.0,
+        width: isIncomingOnly ? 280.0 : 240.0,
         color: Theme.of(context).colorScheme.background,
         child: Stack(
           children: [

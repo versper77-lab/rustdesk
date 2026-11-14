@@ -834,5 +834,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("No connections yet", "아직 접속 기록이 없습니다"),
         ("Remote desktop", "원격 제어"),
         ("Detached control", "분리 조작 (본PC 마우스와 따로)"),
+        ("Local input first", "본PC 입력 우선"),
+        ("k2k_fav_empty_tip", "최근 기기를 오른쪽 클릭(폰은 길게 누르기)한 뒤 '즐겨찾기에 추가'를 누르면 여기에 큰 카드로 나옵니다."),
+        ("Copy", "복사"),
     ].iter().cloned().collect();
 }

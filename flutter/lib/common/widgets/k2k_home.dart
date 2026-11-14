@@ -1,0 +1,304 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hbb/common.dart';
+import 'package:flutter_hbb/models/peer_model.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
+import 'package:flutter_hbb/models/server_model.dart';
+import 'package:provider/provider.dart';
+
+// Host option read by src/server/k2k_local_priority.rs ("N" turns it off).
+const String kK2kLocalPriorityOption = 'k2k-local-priority';
+
+const _kRadius = 14.0;
+
+LinearGradient _k2kGradient() => const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF5B3DF5), Color(0xFF8A5CFA)],
+    );
+
+void _copy(String text) {
+  if (text.isEmpty) return;
+  Clipboard.setData(ClipboardData(text: text));
+  showToast(translate('Copied'));
+}
+
+/// K2K: "My device" card with the ID and password, replacing the plain boards.
+class K2kMyDeviceCard extends StatelessWidget {
+  final VoidCallback? onEditPassword;
+  const K2kMyDeviceCard({Key? key, this.onEditPassword}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: gFFI.serverModel,
+      child: Consumer<ServerModel>(builder: (context, model, _) {
+        final showOneTime = model.approveMode != 'click' &&
+            model.verificationMethod != kUsePermanentPassword;
+        const white70 = TextStyle(color: Colors.white70, fontSize: 12);
+        Widget iconBtn(IconData icon, String tip, VoidCallback onTap) {
+          return Tooltip(
+            message: translate(tip),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(icon, size: 18, color: Colors.white),
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+          decoration: BoxDecoration(
+            gradient: _k2kGradient(),
+            borderRadius: BorderRadius.circular(_kRadius),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF5B3DF5).withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(translate('Your Desktop'),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Text(translate('ID'), style: white70),
+              Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      model.serverId.text,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1),
+                    ),
+                  ),
+                  iconBtn(Icons.copy_rounded, 'Copy',
+                      () => _copy(model.serverId.text)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                  translate(
+                      showOneTime ? 'One-time Password' : 'Password'),
+                  style: white70),
+              Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      model.serverPasswd.text,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (showOneTime)
+                    iconBtn(Icons.copy_rounded, 'Copy',
+                        () => _copy(model.serverPasswd.text)),
+                  if (showOneTime)
+                    iconBtn(Icons.refresh_rounded, 'Refresh Password',
+                        () => bind.mainUpdateTemporaryPassword()),
+                  if (onEditPassword != null && !bind.isDisableSettings())
+                    iconBtn(Icons.edit_rounded, 'Change Password',
+                        onEditPassword!),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+/// K2K: switch for "the person at this PC wins when both use the mouse".
+class K2kLocalPrioritySwitch extends StatefulWidget {
+  const K2kLocalPrioritySwitch({Key? key}) : super(key: key);
+
+  @override
+  State<K2kLocalPrioritySwitch> createState() => _K2kLocalPrioritySwitchState();
+}
+
+class _K2kLocalPrioritySwitchState extends State<K2kLocalPrioritySwitch> {
+  bool _on = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _on = bind.mainGetOptionSync(key: kK2kLocalPriorityOption) != 'N';
+  }
+
+  Future<void> _set(bool v) async {
+    await bind.mainSetOption(key: kK2kLocalPriorityOption, value: v ? '' : 'N');
+    if (mounted) setState(() => _on = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 14, right: 8, bottom: 6),
+      child: Row(
+        children: [
+          Icon(Icons.mouse_rounded, size: 16, color: MyTheme.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(translate('Local input first'),
+                style: const TextStyle(fontSize: 13)),
+          ),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(value: _on, onChanged: _set),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _platformIcon(String platform) {
+  final p = platform.toLowerCase();
+  if (p.contains('android')) return Icons.phone_android_rounded;
+  if (p.contains('ios')) return Icons.phone_iphone_rounded;
+  if (p.contains('mac')) return Icons.laptop_mac_rounded;
+  if (p.contains('linux')) return Icons.computer_rounded;
+  return Icons.desktop_windows_rounded;
+}
+
+/// K2K: favorites shown as large one-click cards at the top of the home page.
+class K2kFavoritesStrip extends StatefulWidget {
+  const K2kFavoritesStrip({Key? key}) : super(key: key);
+
+  @override
+  State<K2kFavoritesStrip> createState() => _K2kFavoritesStripState();
+}
+
+class _K2kFavoritesStripState extends State<K2kFavoritesStrip> {
+  @override
+  void initState() {
+    super.initState();
+    bind.mainLoadFavPeers();
+  }
+
+  Widget _card(BuildContext context, Peer peer) {
+    final name = peer.alias.isNotEmpty
+        ? peer.alias
+        : (peer.hostname.isNotEmpty ? peer.hostname : peer.id);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Material(
+        color: theme.cardColor,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_kRadius),
+          side: BorderSide(color: MyTheme.accent.withOpacity(0.25)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(_kRadius),
+          onTap: () => connect(context, peer.id),
+          child: SizedBox(
+            width: 150,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          gradient: _k2kGradient(),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(_platformIcon(peer.platform),
+                            size: 18, color: Colors.white),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: peer.online
+                              ? const Color(0xFF2FBF71)
+                              : Colors.grey.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(peer.id,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12, color: theme.hintColor)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: gFFI.favoritePeersModel,
+      child: Consumer<Peers>(builder: (context, model, _) {
+        final peers = model.peers;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.star_rounded,
+                    size: 18, color: Color(0xFFFFB400)),
+                const SizedBox(width: 4),
+                Text(translate('Favorites'),
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (peers.isEmpty)
+              Text(translate('k2k_fav_empty_tip'),
+                  style: TextStyle(
+                      fontSize: 12, color: Theme.of(context).hintColor))
+            else
+              SizedBox(
+                height: 96,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: peers.map((p) => _card(context, p)).toList(),
+                ),
+              ),
+          ],
+        );
+      }),
+    );
+  }
+}

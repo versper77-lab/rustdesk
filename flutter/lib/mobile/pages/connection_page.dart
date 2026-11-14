@@ -16,6 +16,7 @@ import '../../common/widgets/peer_tab_page.dart';
 import '../../common/widgets/autocomplete.dart';
 import '../../consts.dart';
 import '../../models/model.dart';
+import '../../common/widgets/k2k_home.dart';
 import '../../models/platform_model.dart';
 import 'home_page.dart';
 
@@ -89,6 +90,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
             Obx(() => _buildUpdateUI(stateGlobal.updateUrl.value)),
           const K2kUpdateCard(),
           _buildRemoteIDTextField(),
+          const K2kFavoritesStrip().paddingSymmetric(horizontal: 16, vertical: 8),
         ])),
         SliverFillRemaining(
           hasScrollBody: true,
