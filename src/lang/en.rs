@@ -313,5 +313,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_pick_not_allowed", "The remote PC doesn't allow choosing the program"),
         ("k2k_pick_not_found", "That window wasn't found. Refresh and try again"),
         ("k2k_allow_remote_pick", "Let the remote side choose the program"),
+        ("k2k_update_now", "Update now"),
+        ("k2k_update_downloading", "Downloading the new version"),
+        ("k2k_update_installing", "Installing. K2K will close and start again"),
+        ("k2k_update_failed", "Update failed"),
     ].iter().cloned().collect();
 }

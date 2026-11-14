@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
@@ -11,6 +12,67 @@ const String _kK2kLatestApi =
     'https://api.github.com/repos/versper77-lab/rustdesk/releases/latest';
 const String kK2kDownloadPage =
     'https://github.com/versper77-lab/rustdesk/releases/latest';
+const String _kK2kWindowsZip =
+    'https://github.com/versper77-lab/rustdesk/releases/latest/download/K2K-windows-x64.zip';
+
+/// Windows: downloads the latest zip, then hands over to a small script that
+/// waits for K2K to close, puts the new files in place (portable: this
+/// folder; installed: a silent re-install, one UAC prompt) and starts K2K again.
+Future<String?> _k2kSelfUpdateWindows(void Function(String) progress) async {
+  final tmp = await Directory.systemTemp.createTemp('k2k_update');
+  final zip = File('${tmp.path}\\K2K-windows-x64.zip');
+  final client = http.Client();
+  try {
+    progress(translate('k2k_update_downloading'));
+    final resp = await client.send(http.Request('GET', Uri.parse(_kK2kWindowsZip)));
+    if (resp.statusCode != 200) return 'HTTP ${resp.statusCode}';
+    final total = resp.contentLength ?? 0;
+    var got = 0;
+    final sink = zip.openWrite();
+    await for (final chunk in resp.stream) {
+      sink.add(chunk);
+      got += chunk.length;
+      if (total > 0) {
+        progress('${translate('k2k_update_downloading')} ${(got * 100 ~/ total)}%');
+      }
+    }
+    await sink.close();
+  } catch (e) {
+    return e.toString();
+  } finally {
+    client.close();
+  }
+
+  final exe = Platform.resolvedExecutable;
+  final dir = File(exe).parent.path;
+  final installed = bind.mainIsInstalled();
+  final unpacked = '${tmp.path}\\new';
+  final script = File('${tmp.path}\\k2k_update.cmd');
+  final lines = <String>[
+    '@echo off',
+    'timeout /t 2 /nobreak >nul',
+    'powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Force -LiteralPath \'${zip.path}\' -DestinationPath \'$unpacked\'"',
+    if (installed)
+      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \'$unpacked\\K2K.exe\' -ArgumentList \'--silent-install\' -Verb RunAs -Wait"'
+    else ...[
+      'taskkill /f /pid $pid >nul 2>&1',
+      'taskkill /f /im K2K.exe >nul 2>&1',
+      'taskkill /f /im rustdesk.exe >nul 2>&1',
+      'timeout /t 1 /nobreak >nul',
+      'xcopy /e /y /q /i "$unpacked\\*" "$dir\\" >nul',
+      'start "" "$dir\\K2K.exe"',
+    ],
+  ];
+  await script.writeAsString(lines.join('\r\n'));
+  progress(translate('k2k_update_installing'));
+  await Process.start('cmd.exe', ['/c', script.path],
+      mode: ProcessStartMode.detached, runInShell: false);
+  if (!installed) {
+    await Future.delayed(const Duration(milliseconds: 500));
+    exit(0);
+  }
+  return null;
+}
 
 int? _parseBuild(String tag) {
   final m = RegExp(r'^k2k-b(\d+)$').firstMatch(tag.trim());
@@ -44,6 +106,27 @@ class K2kUpdateCard extends StatefulWidget {
 class _K2kUpdateCardState extends State<K2kUpdateCard> {
   int? _latest;
   bool _closed = false;
+  String? _status;
+  bool _busy = false;
+
+  Future<void> _update() async {
+    if (!isWindows) {
+      launchUrl(Uri.parse(kK2kDownloadPage),
+          mode: LaunchMode.externalApplication);
+      return;
+    }
+    setState(() => _busy = true);
+    final err = await _k2kSelfUpdateWindows((m) {
+      if (mounted) setState(() => _status = m);
+    });
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _status = err == null
+          ? translate('k2k_update_installing')
+          : '${translate('k2k_update_failed')} ($err)';
+    });
+  }
 
   int get _current => int.tryParse(bind.mainGetCustomBuildNo()) ?? 0;
 
@@ -102,13 +185,17 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
                 style: TextStyle(
                     fontSize: 12, color: Theme.of(context).hintColor)),
           ),
+          if (_status != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 26, top: 4),
+              child: Text(_status!, style: const TextStyle(fontSize: 12)),
+            ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               icon: const Icon(Icons.download_rounded, size: 16),
-              label: Text(translate('Download')),
-              onPressed: () => launchUrl(Uri.parse(kK2kDownloadPage),
-                  mode: LaunchMode.externalApplication),
+              label: Text(translate(isWindows ? 'k2k_update_now' : 'Download')),
+              onPressed: _busy ? null : _update,
             ),
           ),
         ],
