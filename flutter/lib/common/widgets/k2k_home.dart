@@ -175,6 +175,53 @@ class _K2kLocalPrioritySwitchState extends State<K2kLocalPrioritySwitch> {
   }
 }
 
+// Host option read by src/platform/k2k_keep_awake.rs ("N" lets the PC sleep).
+const String kK2kKeepAwakeOption = 'k2k-keep-awake';
+
+/// K2K: switch for "keep this PC awake so it stays reachable".
+class K2kKeepAwakeSwitch extends StatefulWidget {
+  const K2kKeepAwakeSwitch({Key? key}) : super(key: key);
+
+  @override
+  State<K2kKeepAwakeSwitch> createState() => _K2kKeepAwakeSwitchState();
+}
+
+class _K2kKeepAwakeSwitchState extends State<K2kKeepAwakeSwitch> {
+  bool _on = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _on = bind.mainGetOptionSync(key: kK2kKeepAwakeOption) != 'N';
+  }
+
+  Future<void> _set(bool v) async {
+    await bind.mainSetOption(key: kK2kKeepAwakeOption, value: v ? '' : 'N');
+    if (mounted) setState(() => _on = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(left: 14, right: 8, bottom: 6),
+      child: Row(
+        children: [
+          Icon(Icons.bedtime_off_rounded, size: 16, color: MyTheme.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(translate('k2k_keep_awake'),
+                style: const TextStyle(fontSize: 13)),
+          ),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(value: _on, onChanged: _set),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Host option read by src/server/k2k_remote_pick.rs ("N" forbids it).
 const String kK2kRemotePickOption = 'k2k-remote-pick';
 

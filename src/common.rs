@@ -2522,6 +2522,13 @@ fn apply_k2k_branding() {
         defaults.entry(k.to_owned()).or_insert_with(|| v.to_owned());
     }
     drop(defaults);
+    // K2K hosts stay reachable: the service can't be left switched off by an
+    // old "stop service" setting (on Android this option drives screen sharing).
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    config::OVERWRITE_SETTINGS
+        .write()
+        .unwrap()
+        .insert("stop-service".to_owned(), "".to_owned());
     // Quick-support build: an executable whose name contains "support" only accepts
     // incoming sessions and shows just the ID/password (e.g. K2K-support.exe).
     let is_support_exe = std::env::current_exe()

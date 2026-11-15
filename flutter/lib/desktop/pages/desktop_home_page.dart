@@ -102,6 +102,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       if (!isOutgoingOnly && isWindows) const K2kAppShareCard(),
       if (!isOutgoingOnly && isWindows) const K2kLocalPrioritySwitch(),
       if (!isOutgoingOnly && isWindows) const K2kRemotePickSwitch(),
+      if (!isOutgoingOnly && isWindows) const K2kKeepAwakeSwitch(),
       if (!isOutgoingOnly) const K2kConnectionLogLink(),
       const K2kUpdateCard(),
       FutureBuilder<Widget>(

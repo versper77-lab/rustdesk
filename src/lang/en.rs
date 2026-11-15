@@ -317,5 +317,6 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_update_downloading", "Downloading the new version"),
         ("k2k_update_installing", "Installing. K2K will close and start again"),
         ("k2k_update_failed", "Update failed"),
+        ("k2k_keep_awake", "Keep this PC awake for remote access"),
     ].iter().cloned().collect();
 }
