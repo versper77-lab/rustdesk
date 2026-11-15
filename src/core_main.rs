@@ -104,6 +104,22 @@ pub fn core_main() -> Option<CoreMainAction> {
         #[cfg(target_os = "windows")]
         let should_check_start_tray = crate::platform::is_self_service_running()
             && crate::platform::is_cur_exe_the_installed();
+        // K2K: the installed copy must always have its service; if it was
+        // removed (e.g. by an old "stop service"), put it back (one UAC prompt).
+        #[cfg(target_os = "windows")]
+        if !should_check_start_tray
+            && crate::platform::is_installed()
+            && crate::platform::is_cur_exe_the_installed()
+            && !crate::platform::is_self_service_running()
+        {
+            if let Ok(exe) = std::env::current_exe() {
+                log::info!("K2K: service missing, reinstalling it");
+                hbb_common::allow_err!(crate::platform::run_uac(
+                    &exe.to_string_lossy(),
+                    "--install-service"
+                ));
+            }
+        }
         if should_check_start_tray && !crate::check_process("--tray", true) {
             #[cfg(target_os = "linux")]
             hbb_common::allow_err!(crate::platform::check_autostart_config());
