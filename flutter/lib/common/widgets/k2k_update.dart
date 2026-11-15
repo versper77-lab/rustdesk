@@ -45,19 +45,27 @@ Future<String?> _k2kSelfUpdateWindows(void Function(String) progress) async {
 
   final exe = Platform.resolvedExecutable;
   final dir = File(exe).parent.path;
-  final installed = bind.mainIsInstalled();
+  // Only treat this copy as the installed one when it actually runs from
+  // Program Files; an unzipped copy elsewhere is updated in its own folder
+  // even if K2K is also installed on this PC.
+  final pf = (Platform.environment['ProgramFiles'] ?? 'C:\\Program Files')
+      .toLowerCase();
+  final installed =
+      bind.mainIsInstalled() && dir.toLowerCase().startsWith(pf);
   final unpacked = '${tmp.path}\\new';
   final script = File('${tmp.path}\\k2k_update.cmd');
   final lines = <String>[
     '@echo off',
     'timeout /t 2 /nobreak >nul',
     'powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Force -LiteralPath \'${zip.path}\' -DestinationPath \'$unpacked\'"',
-    if (installed)
-      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \'$unpacked\\K2K.exe\' -ArgumentList \'--silent-install\' -Verb RunAs -Wait"'
+    if (installed) ...[
+      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \'$unpacked\\K2K.exe\' -ArgumentList \'--silent-install\' -Verb RunAs -Wait"',
+      'start "" "$exe"',
+    ]
     else ...[
       'taskkill /f /pid $pid >nul 2>&1',
-      'taskkill /f /im K2K.exe >nul 2>&1',
-      'taskkill /f /im rustdesk.exe >nul 2>&1',
+      // Stop only copies running from this folder, never the installed service.
+      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process K2K,rustdesk -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like \'$dir\\*\' } | Stop-Process -Force"',
       'timeout /t 1 /nobreak >nul',
       'xcopy /e /y /q /i "$unpacked\\*" "$dir\\" >nul',
       'start "" "$dir\\K2K.exe"',
