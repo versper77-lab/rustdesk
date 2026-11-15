@@ -874,6 +874,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_update_installing", "설치 중입니다. K2K가 잠시 꺼졌다가 다시 켜집니다"),
         ("k2k_update_failed", "업데이트하지 못했습니다"),
         ("k2k_keep_awake", "절전 막기 (항상 원격 대기)"),
+        ("k2k_up_to_date", "최신 버전"),
         ("Enter K2K key", "K2K 키를 입력하세요"),
         ("k2k_key_tip", "관리자에게 받은 키를 넣으면 이 기기가 등록되어 원격 접속을 받을 수 있습니다."),
         ("k2k_key_activated", "K2K 키가 등록되었습니다"),

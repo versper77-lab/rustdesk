@@ -57,15 +57,15 @@ Future<String?> _k2kSelfUpdateWindows(void Function(String) progress) async {
   final lines = <String>[
     '@echo off',
     'timeout /t 2 /nobreak >nul',
-    'powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Force -LiteralPath \'${zip.path}\' -DestinationPath \'$unpacked\'"',
+    'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Expand-Archive -Force -LiteralPath \'${zip.path}\' -DestinationPath \'$unpacked\'"',
     if (installed) ...[
-      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \'$unpacked\\K2K.exe\' -ArgumentList \'--silent-install\' -Verb RunAs -Wait"',
+      'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "(Start-Process -FilePath \'$unpacked\\K2K.exe\' -ArgumentList \'--silent-install\' -Verb RunAs -PassThru).WaitForExit()"',
       'start "" "$exe"',
     ]
     else ...[
       'taskkill /f /pid $pid >nul 2>&1',
       // Stop only copies running from this folder, never the installed service.
-      'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Process K2K,rustdesk -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like \'$dir\\*\' } | Stop-Process -Force"',
+      'powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Get-Process K2K,rustdesk -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like \'$dir\\*\' } | Stop-Process -Force"',
       'timeout /t 1 /nobreak >nul',
       'xcopy /e /y /q /i "$unpacked\\*" "$dir\\" >nul',
       'start "" "$dir\\K2K.exe"',
@@ -152,7 +152,20 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
   Widget build(BuildContext context) {
     final latest = _latest;
     if (_closed || latest == null || latest <= _current) {
-      return const SizedBox.shrink();
+      // Always show which K2K build is running.
+      if (_current <= 0) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 14, 10),
+        child: Text(
+          latest != null && latest <= _current
+              ? 'K2K b$_current · ${translate('k2k_up_to_date')}'
+              : 'K2K b$_current',
+          style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).textTheme.bodySmall?.color
+                  ?.withOpacity(0.7)),
+        ),
+      );
     }
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 4, 14, 10),
