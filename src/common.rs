@@ -2522,6 +2522,12 @@ fn apply_k2k_branding() {
         defaults.entry(k.to_owned()).or_insert_with(|| v.to_owned());
     }
     drop(defaults);
+    // K2K: remote screens open scaled to fit the window (not 1:1 following the cursor).
+    config::DEFAULT_DISPLAY_SETTINGS
+        .write()
+        .unwrap()
+        .entry("view_style".to_owned())
+        .or_insert_with(|| "adaptive".to_owned());
     // K2K hosts stay reachable: the service can't be left switched off by an
     // old "stop service" setting (on Android this option drives screen sharing).
     #[cfg(any(target_os = "windows", target_os = "linux"))]
