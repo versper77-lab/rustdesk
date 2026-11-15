@@ -11,6 +11,11 @@ use windows::{
     },
     Win32::{
         Foundation::{CloseHandle, E_FAIL, HMODULE, HWND, LPARAM, POINT, RECT},
+        Graphics::Gdi::{
+            CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits,
+            ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+        },
+        Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS},
         Graphics::{
             Direct3D::D3D_DRIVER_TYPE_HARDWARE,
             Direct3D11::{
@@ -33,7 +38,8 @@ use windows::{
             },
         },
         UI::WindowsAndMessaging::{
-            EnumWindows, GetCursorPos, GetForegroundWindow, GetWindow, GetWindowTextLengthW,
+            EnumWindows, GetCursorPos, GetForegroundWindow, GetWindow, GetWindowRect,
+            GetWindowTextLengthW,
             GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible,
             SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
         },
@@ -313,5 +319,150 @@ impl Drop for WindowCapture {
     fn drop(&mut self) {
         let _ = self.session.Close();
         let _ = self.pool.Close();
+    }
+}
+
+/// Fallback window capture through `PrintWindow`. Slower than Windows Graphics
+/// Capture but it also works from the K2K service (SYSTEM account), where WGC
+/// can fail or never deliver frames.
+pub struct GdiCapture {
+    hwnd: HWND,
+    buf: Vec<u8>,
+}
+
+impl GdiCapture {
+    pub fn new(hwnd: HWND) -> Self {
+        Self { hwnd, buf: Vec::new() }
+    }
+
+    /// Same contract as [`WindowCapture::grab`]; always produces a frame.
+    pub fn grab(&mut self, out: &mut [u8], w: usize, h: usize) -> Result<bool> {
+        unsafe {
+            let mut wr = RECT::default();
+            GetWindowRect(self.hwnd, &mut wr)?;
+            let mut ext = wr;
+            let _ = DwmGetWindowAttribute(
+                self.hwnd,
+                DWMWA_EXTENDED_FRAME_BOUNDS,
+                &mut ext as *mut RECT as *mut core::ffi::c_void,
+                std::mem::size_of::<RECT>() as u32,
+            );
+            let ww = (wr.right - wr.left).max(1);
+            let wh = (wr.bottom - wr.top).max(1);
+            let (ox, oy) = (
+                (ext.left - wr.left).clamp(0, ww) as usize,
+                (ext.top - wr.top).clamp(0, wh) as usize,
+            );
+            let screen = GetDC(None);
+            let mem = CreateCompatibleDC(Some(screen));
+            let bmp = CreateCompatibleBitmap(screen, ww, wh);
+            let old = SelectObject(mem, bmp.into());
+            // PW_RENDERFULLCONTENT (2): also captures DirectX / browser content.
+            let _ = PrintWindow(self.hwnd, mem, PRINT_WINDOW_FLAGS(2));
+            let mut bi = BITMAPINFO::default();
+            bi.bmiHeader = BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: ww,
+                biHeight: -wh,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            };
+            let (uw, uh) = (ww as usize, wh as usize);
+            self.buf.resize(uw * uh * 4, 0);
+            let lines = GetDIBits(
+                mem,
+                bmp,
+                0,
+                wh as u32,
+                Some(self.buf.as_mut_ptr() as *mut core::ffi::c_void),
+                &mut bi,
+                DIB_RGB_COLORS,
+            );
+            SelectObject(mem, old);
+            let _ = DeleteObject(bmp.into());
+            let _ = DeleteDC(mem);
+            ReleaseDC(None, screen);
+            if lines == 0 {
+                return Err(Error::from(E_FAIL));
+            }
+            out.fill(0);
+            let cw = w.min(uw.saturating_sub(ox));
+            let ch = h.min(uh.saturating_sub(oy));
+            for y in 0..ch {
+                let src = ((oy + y) * uw + ox) * 4;
+                let dst = y * w * 4;
+                out[dst..dst + cw * 4].copy_from_slice(&self.buf[src..src + cw * 4]);
+                // GDI leaves alpha at 0; make the pixels opaque.
+                for a in out[dst + 3..dst + cw * 4].iter_mut().step_by(4) {
+                    *a = 255;
+                }
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// Window capture that starts with Windows Graphics Capture and switches to
+/// `PrintWindow` when WGC cannot be created or delivers no frame in time.
+pub enum AnyCapture {
+    Wgc {
+        cap: WindowCapture,
+        hwnd: HWND,
+        started: std::time::Instant,
+        got_frame: bool,
+    },
+    Gdi(GdiCapture),
+}
+
+impl AnyCapture {
+    pub fn new(hwnd: HWND) -> (Self, Option<Error>) {
+        match WindowCapture::new(hwnd) {
+            Ok(cap) => (
+                AnyCapture::Wgc {
+                    cap,
+                    hwnd,
+                    started: std::time::Instant::now(),
+                    got_frame: false,
+                },
+                None,
+            ),
+            Err(e) => (AnyCapture::Gdi(GdiCapture::new(hwnd)), Some(e)),
+        }
+    }
+
+    pub fn is_gdi(&self) -> bool {
+        matches!(self, AnyCapture::Gdi(_))
+    }
+
+    pub fn grab(&mut self, out: &mut [u8], w: usize, h: usize) -> Result<bool> {
+        match self {
+            AnyCapture::Gdi(g) => g.grab(out, w, h),
+            AnyCapture::Wgc {
+                cap,
+                hwnd,
+                started,
+                got_frame,
+            } => {
+                let r = cap.grab(out, w, h);
+                match r {
+                    Ok(true) => {
+                        *got_frame = true;
+                        Ok(true)
+                    }
+                    Ok(false) if *got_frame
+                        || started.elapsed() < std::time::Duration::from_millis(1500) =>
+                    {
+                        Ok(false)
+                    }
+                    _ => {
+                        let hwnd = *hwnd;
+                        *self = AnyCapture::Gdi(GdiCapture::new(hwnd));
+                        self.grab(out, w, h)
+                    }
+                }
+            }
+        }
     }
 }

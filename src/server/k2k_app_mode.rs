@@ -36,7 +36,7 @@ mod imp {
             MOUSE_TYPE_DOWN, MOUSE_TYPE_MASK, MOUSE_TYPE_MOVE_RELATIVE, MOUSE_TYPE_TRACKPAD,
             MOUSE_TYPE_WHEEL,
         },
-        platform::k2k_window::{self as kw, WindowCapture},
+        platform::k2k_window::{self as kw, AnyCapture},
         privacy_mode::INVALID_PRIVACY_MODE_CONN_ID,
     };
     use base::message_proto::{key_event, ControlKey, DisplayInfo, KeyEvent, MouseEvent};
@@ -116,13 +116,13 @@ mod imp {
     pub fn get_capturer() -> ResultType<CapturerInfo> {
         let (hwnd, (x, y, w, h)) = current();
         let capture = match hwnd {
-            Some(hwnd) => match WindowCapture::new(hwnd) {
-                Ok(c) => Some(c),
-                Err(e) => {
-                    log::error!("K2K app mode: window capture failed: {}", e);
-                    None
+            Some(hwnd) => {
+                let (c, err) = AnyCapture::new(hwnd);
+                if let Some(e) = err {
+                    log::warn!("K2K app mode: WGC unavailable ({}), using PrintWindow", e);
                 }
-            },
+                Some(c)
+            }
             None => {
                 log::info!("K2K app mode: target window not found, sending placeholder");
                 None
@@ -148,7 +148,7 @@ mod imp {
     }
 
     struct AppWindowCapturer {
-        capture: Option<WindowCapture>,
+        capture: Option<AnyCapture>,
         out: Vec<u8>,
         width: usize,
         height: usize,
