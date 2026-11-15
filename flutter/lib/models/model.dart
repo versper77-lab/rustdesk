@@ -2451,6 +2451,11 @@ class CanvasModel with ChangeNotifier {
   _resetCanvasOffset(int displayWidth, int displayHeight) {
     _x = (size.width - displayWidth * _scale) / 2;
     _y = (size.height - displayHeight * _scale) / 2;
+    // K2K: on a phone held upright, keep a wide desktop at the top so the
+    // empty space below works as a touchpad area instead of framing it.
+    if (isMobile && size.height > size.width && _y > 0) {
+      _y = 0;
+    }
     if (isMobile) {
       _moveToCenterCursor();
     }
