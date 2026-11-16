@@ -336,7 +336,7 @@ pub fn session_handle_screenshot(
 
 /// K2K capture: puts a PNG (captured on this side from the remote image) on
 /// the local clipboard. Returns an error text, or "" on success.
-pub fn session_k2k_copy_png(
+pub fn session_copy_png_to_clipboard(
     #[allow(unused_variables)] session_id: SessionID,
     data: Vec<u8>,
 ) -> String {

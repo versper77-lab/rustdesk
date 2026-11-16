@@ -1979,9 +1979,9 @@ class RustdeskImpl {
     throw UnimplementedError("mainSetCommon");
   }
 
-  Future<String> sessionK2kCopyPng(
+  Future<String> sessionCopyPngToClipboard(
       {required UuidValue sessionId, required Uint8List data, dynamic hint}) {
-    throw UnimplementedError("sessionK2kCopyPng");
+    throw UnimplementedError("sessionCopyPngToClipboard");
   }
 
   Future<String> sessionHandleScreenshot(

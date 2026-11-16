@@ -50,7 +50,7 @@ Future<void> _k2kSave(FFI ffi, ui.Image image, Rect rect) async {
   final bytes = png.buffer.asUint8List();
 
   final err =
-      await bind.sessionK2kCopyPng(sessionId: ffi.sessionId, data: bytes);
+      await bind.sessionCopyPngToClipboard(sessionId: ffi.sessionId, data: bytes);
   String? saved;
   try {
     final home = Platform.environment['USERPROFILE'] ??
@@ -90,9 +90,11 @@ class _K2kCaptureDialogState extends State<_K2kCaptureDialog> {
   @override
   Widget build(BuildContext context) {
     final img = widget.image;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(16),
+    return Material(
+      type: MaterialType.transparency,
+      child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -170,6 +172,8 @@ class _K2kCaptureDialogState extends State<_K2kCaptureDialog> {
             }),
           ),
         ],
+      ),
+      ),
       ),
     );
   }
