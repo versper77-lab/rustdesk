@@ -7,12 +7,15 @@ allowed device IDs is written to /data/k2k_allow.txt, which hbbs reads; hbbs
 only enforces it while /data/k2k_enforce exists.
 """
 
+import calendar
 import hashlib
 import hmac
+import http.client
 import json
 import os
 import re
 import secrets
+import socket
 import sqlite3
 import threading
 import time
@@ -28,6 +31,12 @@ ALLOW_FILE = os.path.join(DATA_DIR, "k2k_allow.txt")
 ENFORCE_FILE = os.path.join(DATA_DIR, "k2k_enforce")
 BIND = os.environ.get("K2K_BIND", "127.0.0.1")
 PORT = int(os.environ.get("K2K_PORT", "8080"))
+DOCKER_SOCK = "/var/run/docker.sock"
+SERVER_CONTAINERS = ("hbbr", "hbbs")  # start order; stopped in reverse
+TRAFFIC_EVERY = 300
+TRAFFIC_KEEP_DAYS = 400
+TZ_OFFSET = int(os.environ.get("K2K_TZ_OFFSET_HOURS", "9")) * 3600  # days/months in KST
+FREE_EGRESS_BYTES = 10 * 1000 ** 4  # Oracle free tier: 10 TB outbound / month
 
 KEY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 SESSION_HOURS = 12
@@ -62,6 +71,9 @@ def init_db():
                 id TEXT PRIMARY KEY, key TEXT NOT NULL, name TEXT NOT NULL DEFAULT '',
                 platform TEXT NOT NULL DEFAULT '', activated INTEGER NOT NULL,
                 last_seen INTEGER NOT NULL)"""
+        )
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS traffic (ts INTEGER NOT NULL, rx INTEGER NOT NULL, tx INTEGER NOT NULL)"
         )
     write_allow_list()
 
@@ -120,6 +132,155 @@ def clean_text(s, n):
     return re.sub(r"[\x00-\x1f]", "", str(s or ""))[:n]
 
 
+# ---- server control (Docker Engine API over the mounted socket) ----
+class _DockerConn(http.client.HTTPConnection):
+    def __init__(self):
+        super().__init__("localhost", timeout=30)
+
+    def connect(self):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(30)
+        s.connect(DOCKER_SOCK)
+        self.sock = s
+
+
+def docker(method, path):
+    c = _DockerConn()
+    try:
+        c.request(method, path)
+        r = c.getresponse()
+        return r.status, r.read()
+    finally:
+        c.close()
+
+
+def server_state():
+    out = []
+    for name in SERVER_CONTAINERS:
+        try:
+            code, data = docker("GET", "/containers/%s/json" % name)
+            if code != 200:
+                raise OSError(code)
+            st = json.loads(data)["State"]
+            out.append({"name": name, "running": bool(st.get("Running")),
+                        "started": st.get("StartedAt", "")})
+        except Exception:
+            out.append({"name": name, "running": None, "started": ""})
+    return out
+
+
+def set_server(on):
+    names = SERVER_CONTAINERS if on else tuple(reversed(SERVER_CONTAINERS))
+    for name in names:
+        code, data = docker("POST", "/containers/%s/%s" % (name, "start" if on else "stop?t=5"))
+        if code not in (204, 304):
+            raise OSError("%s: %s %s" % (name, code, data[:200].decode(errors="replace")))
+
+
+def relay_requests_since(ts):
+    """Counts hbbr 'New relay request' log lines since `ts` (one per side of a relayed session)."""
+    try:
+        code, data = docker("GET", "/containers/hbbr/logs?stdout=1&stderr=1&since=%d" % int(ts))
+    except Exception:
+        return None
+    if code != 200:
+        return None
+    n, i = 0, 0
+    while i + 8 <= len(data):  # multiplexed stream: 8-byte header + payload
+        size = int.from_bytes(data[i + 4:i + 8], "big")
+        n += data[i + 8:i + 8 + size].count(b"New relay request")
+        i += 8 + size
+    return n
+
+
+# ---- usage ----
+def read_net_bytes():
+    rx = tx = 0
+    with open("/proc/net/dev") as f:
+        for line in f.readlines()[2:]:
+            name, rest = line.split(":", 1)
+            name = name.strip()
+            if name == "lo" or name.startswith(("docker", "veth", "br-")):
+                continue
+            v = rest.split()
+            rx += int(v[0])
+            tx += int(v[8])
+    return rx, tx
+
+
+def traffic_loop():
+    while True:
+        try:
+            rx, tx = read_net_bytes()
+            now = int(time.time())
+            with db() as c:
+                c.execute("INSERT INTO traffic(ts,rx,tx) VALUES(?,?,?)", (now, rx, tx))
+                c.execute("DELETE FROM traffic WHERE ts < ?", (now - TRAFFIC_KEEP_DAYS * 86400,))
+        except Exception as e:
+            print("traffic sample failed:", e, flush=True)
+        time.sleep(TRAFFIC_EVERY)
+
+
+def traffic_since(start):
+    """Bytes moved since `start`, summing counter deltas (a reboot resets the counters)."""
+    with db() as c:
+        rows = c.execute(
+            "SELECT ts,rx,tx FROM traffic WHERE ts >= ? - ? ORDER BY ts", (start, TRAFFIC_EVERY * 2)
+        ).fetchall()
+    rx = tx = 0
+    prev = None
+    days = {}
+    for r in rows:
+        if prev is not None and r["ts"] >= start:
+            drx = r["rx"] - prev["rx"] if r["rx"] >= prev["rx"] else r["rx"]
+            dtx = r["tx"] - prev["tx"] if r["tx"] >= prev["tx"] else r["tx"]
+            rx += drx
+            tx += dtx
+            d = time.strftime("%m-%d", time.gmtime(r["ts"] + TZ_OFFSET))
+            a = days.setdefault(d, [0, 0])
+            a[0] += drx
+            a[1] += dtx
+        prev = r
+    return rx, tx, days
+
+
+def usage():
+    now = time.time()
+    lt = time.gmtime(now + TZ_OFFSET)
+    today = calendar.timegm((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0)) - TZ_OFFSET
+    month = calendar.timegm((lt.tm_year, lt.tm_mon, 1, 0, 0, 0)) - TZ_OFFSET
+    two_weeks = today - 13 * 86400
+    mrx, mtx, _ = traffic_since(month)
+    trx, ttx, _ = traffic_since(today)
+    _, _, days = traffic_since(two_weeks)
+    mem = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            k, v = line.split(":", 1)
+            mem[k] = int(v.split()[0]) * 1024
+    st = os.statvfs(DATA_DIR)
+    with db() as c:
+        seen = c.execute("SELECT COUNT(*) n FROM devices WHERE last_seen >= ?", (now - 86400,)).fetchone()["n"]
+        total = c.execute("SELECT COUNT(*) n FROM devices").fetchone()["n"]
+    relay = relay_requests_since(today)
+    return {
+        "server": server_state(),
+        "load": os.getloadavg(),
+        "cpus": os.cpu_count(),
+        "mem_total": mem.get("MemTotal", 0),
+        "mem_avail": mem.get("MemAvailable", 0),
+        "disk_total": st.f_blocks * st.f_frsize,
+        "disk_free": st.f_bavail * st.f_frsize,
+        "today": {"rx": trx, "tx": ttx},
+        "month": {"rx": mrx, "tx": mtx},
+        "free_egress": FREE_EGRESS_BYTES,
+        "days": [{"d": d, "rx": v[0], "tx": v[1]} for d, v in sorted(days.items())],
+        "relay_today": None if relay is None else (relay + 1) // 2,
+        "devices_seen_24h": seen,
+        "devices_total": total,
+    }
+
+
 ADMIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>K2K 관리</title><style>
@@ -147,18 +308,36 @@ function login(msg){$('#hdr').innerHTML='';$('#app').innerHTML=`<div class="card
  <div class="row"><input id="pw" type="password" placeholder="관리자 비밀번호"><button id="lg">로그인</button></div><p class="m">${msg||''}</p></div>`;
  $('#lg').onclick=async()=>{const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json','X-K2K':'1'},body:JSON.stringify({password:$('#pw').value})});
   const j=await r.json().catch(()=>({}));if(r.ok)load();else login(j.error||'실패')};$('#pw').onkeydown=e=>{if(e.key=='Enter')$('#lg').click()}}
+const gb=b=>b>=1e12?(b/1e12).toFixed(2)+' TB':b>=1e9?(b/1e9).toFixed(2)+' GB':(b/1e6).toFixed(1)+' MB';
+async function usage(){const u=await api('/admin/api/usage');const on=u.server.every(x=>x.running),off=u.server.every(x=>x.running===false);
+ const mx=Math.max(1,...u.days.map(d=>d.rx+d.tx));const pct=Math.min(100,u.month.tx*100/u.free_egress);
+ let h=`<div class="card"><div class="row" style="justify-content:space-between"><div><b>원격 서버</b> <span class="pill ${on?'':'no'}">${on?'켜짐':off?'꺼짐':'일부만 켜짐'}</span>
+ <div class="m">${u.server.map(x=>esc(x.name)+': '+(x.running?'실행 중 ('+new Date(x.started).toLocaleString('ko-KR')+'부터)':x.running===false?'중지':'상태 모름')).join(' · ')}</div>
+ <div class="m">끄면 아무도 원격 접속할 수 없습니다(진행 중인 연결도 끊김). 이 관리 페이지는 계속 열립니다.</div></div>
+ <button id="sv" class="${on?'red':''}">${on?'서버 끄기':'서버 켜기'}</button></div></div>
+ <div class="card"><b>사용량</b><table>
+ <tr><td>오늘 트래픽</td><td>보냄 ${gb(u.today.tx)} · 받음 ${gb(u.today.rx)}</td></tr>
+ <tr><td>이번 달 보낸 양</td><td>${gb(u.month.tx)} / 무료 ${gb(u.free_egress)} (${pct.toFixed(2)}%)</td></tr>
+ <tr><td>오늘 중계 연결</td><td>${u.relay_today==null?'-':u.relay_today+'회'} <span class="m">(직접 연결(P2P)은 서버를 거치지 않아 제외)</span></td></tr>
+ <tr><td>최근 24시간 확인된 기기</td><td>${u.devices_seen_24h} / ${u.devices_total}대 <span class="m">(키 등록 기기 기준)</span></td></tr>
+ <tr><td>CPU 부하</td><td>${u.load.map(x=>x.toFixed(2)).join(' / ')} <span class="m">(1·5·15분, 코어 ${u.cpus}개)</span></td></tr>
+ <tr><td>메모리</td><td>${gb(u.mem_total-u.mem_avail)} / ${gb(u.mem_total)}</td></tr>
+ <tr><td>디스크</td><td>${gb(u.disk_total-u.disk_free)} / ${gb(u.disk_total)}</td></tr></table>
+ <div class="m" style="margin-top:10px">최근 14일 트래픽</div>${u.days.map(d=>`<div class="row" style="gap:6px;font-size:12px"><span style="width:44px">${d.d}</span><span style="height:10px;border-radius:5px;background:var(--a);width:${Math.max(2,(d.rx+d.tx)*70/mx)}%"></span><span class="m">${gb(d.rx+d.tx)}</span></div>`).join('')||'<div class="m">수집 중 (5분마다 기록)</div>'}</div>`;
+ $('#usage').innerHTML=h;
+ $('#sv').onclick=async()=>{if(!confirm(on?'서버를 끄면 모든 원격 접속이 끊기고 새로 접속할 수 없습니다. 끌까요?':'서버를 켤까요?'))return;$('#sv').disabled=true;$('#sv').textContent='처리 중...';try{await api('/admin/api/server',{on:!on})}finally{usage()}}}
 async function load(){const s=await api('/admin/api/state');
  $('#hdr').innerHTML='<button class="ghost" style="color:#fff;border-color:#fff" id="lo">로그아웃</button>';$('#lo').onclick=async()=>{await api('/admin/logout',{});login()};
- let h=`<div class="card"><div class="row" style="justify-content:space-between"><div><b>키 잠금</b> <span class="pill ${s.enforce?'':'no'}">${s.enforce?'켜짐: 키 등록 기기만 접속':'꺼짐: 누구나 접속'}</span>
+ let h=`<div id="usage"><div class="card m">서버 상태 불러오는 중...</div></div><div class="card"><div class="row" style="justify-content:space-between"><div><b>키 잠금</b> <span class="pill ${s.enforce?'':'no'}">${s.enforce?'켜짐: 키 등록 기기만 접속':'꺼짐: 누구나 접속'}</span>
  <div class="m">처음엔 꺼 두고, 내 기기들을 모두 키로 등록한 뒤 켜세요.</div></div><button id="en">${s.enforce?'잠금 끄기':'잠금 켜기'}</button></div></div>
  <div class="card"><b>새 키 발급</b><div class="row" style="margin-top:8px"><input id="nm" placeholder="이름/메모 (예: 홍길동)"><input id="mx" type="number" min="1" max="50" value="3" style="width:80px"><span class="m">대까지</span><button id="mk">발급</button></div></div>`;
  for(const k of s.keys){h+=`<div class="card ${k.active?'':'off'}"><div class="row" style="justify-content:space-between"><div><span class="key">${esc(k.key)}</span>
  <div class="m">${esc(k.name)||'(이름 없음)'} · 기기 ${k.devices.length}/${k.max_devices} · 발급 ${dt(k.created)}</div></div><div class="row">
  <button class="ghost" data-copy="${esc(k.key)}">복사</button><button class="${k.active?'red':''}" data-tg="${esc(k.key)}">${k.active?'중지':'재개'}</button><button class="ghost" data-del="${esc(k.key)}">삭제</button></div></div>`;
-  if(k.devices.length){h+='<table>';for(const d of k.devices)h+=`<tr><td><b>${esc(d.id)}</b></td><td>${esc(d.name)}</td><td>${esc(d.platform)}</td><td class="m">등록 ${dt(d.activated)}</td><td><button class="ghost" data-rm="${esc(d.id)}">빼기</button></td></tr>`;h+='</table>'}
+  if(k.devices.length){h+='<table>';for(const d of k.devices)h+=`<tr><td><b>${esc(d.id)}</b></td><td>${esc(d.name)}</td><td>${esc(d.platform)}</td><td class="m">등록 ${dt(d.activated)}<br>마지막 확인 ${dt(d.last_seen)}</td><td><button class="ghost" data-rm="${esc(d.id)}">빼기</button></td></tr>`;h+='</table>'}
   h+='</div>'}
  h+=`<div class="card"><b>관리자 비밀번호 변경</b><div class="row" style="margin-top:8px"><input id="np" type="password" placeholder="새 비밀번호 (8자 이상)"><button id="cp">변경</button></div></div>`;
- $('#app').innerHTML=h;
+ $('#app').innerHTML=h;usage().catch(()=>{$('#usage').innerHTML='<div class="card m">서버 상태를 읽지 못했습니다 (install-keys.sh를 다시 실행해 주세요)</div>'});
  $('#en').onclick=async()=>{if(!s.enforce&&!confirm('잠금을 켜면 키로 등록되지 않은 기기는 접속할 수 없습니다. 켤까요?'))return;await api('/admin/api/enforce',{on:!s.enforce});load()};
  $('#mk').onclick=async()=>{const r=await api('/admin/api/keys',{name:$('#nm').value,max_devices:+$('#mx').value||3});load();setTimeout(()=>prompt('발급된 키 (복사해서 전달하세요)',r.key),100)};
  $('#cp').onclick=async()=>{await api('/admin/api/password',{password:$('#np').value});alert('변경되었습니다')};
@@ -245,6 +424,10 @@ class Handler(BaseHTTPRequestHandler):
                     k["devices"] = [dict(r) for r in c.execute(
                         "SELECT * FROM devices WHERE key=? ORDER BY activated", (k["key"],))]
             self.send_json(200, {"keys": keys, "enforce": os.path.exists(ENFORCE_FILE)})
+        elif u.path == "/admin/api/usage":
+            if not self.session_ok():
+                return self.send_json(401, {"error": "로그인이 필요합니다"})
+            self.send_json(200, usage())
         elif u.path == "/":
             self.send_response(302)
             self.send_header("Location", "/admin")
@@ -299,6 +482,12 @@ class Handler(BaseHTTPRequestHandler):
             elif os.path.exists(ENFORCE_FILE):
                 os.remove(ENFORCE_FILE)
             return self.send_json(200, {"ok": True})
+        if u.path == "/admin/api/server":
+            try:
+                set_server(bool(body.get("on")))
+            except Exception as e:
+                return self.send_json(500, {"error": "서버 제어 실패: %s" % e})
+            return self.send_json(200, {"ok": True, "server": server_state()})
         if u.path == "/admin/api/password":
             pw = str(body.get("password") or "")
             if len(pw) < 8:
@@ -370,6 +559,7 @@ def main():
         pw = os.environ.get("K2K_ADMIN_PASSWORD") or secrets.token_urlsafe(9)
         set_password(pw)
         print("K2K admin password:", pw, flush=True)
+    threading.Thread(target=traffic_loop, daemon=True).start()
     ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
 
 

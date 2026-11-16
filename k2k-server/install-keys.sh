@@ -62,6 +62,8 @@ services:
       - ./keys:/keys
       - ./data:/data
       - ./k2k-keys.py:/app/k2k-keys.py:ro
+      # lets the admin page switch hbbs/hbbr on and off
+      - /var/run/docker.sock:/var/run/docker.sock
     network_mode: "host"
     restart: unless-stopped
   caddy:
