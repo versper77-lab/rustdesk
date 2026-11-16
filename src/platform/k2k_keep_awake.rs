@@ -25,3 +25,10 @@ pub fn start() {
             });
     });
 }
+
+/// K2K: like AnyDesk, an incoming session does not turn the host's monitor on
+/// (the PC is still kept from sleeping). Set `k2k-wake-display` to `Y` for the
+/// RustDesk behaviour.
+pub fn wake_display() -> bool {
+    Config::get_option("k2k-wake-display") == "Y"
+}

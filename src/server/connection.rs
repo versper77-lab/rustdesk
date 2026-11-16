@@ -6738,6 +6738,10 @@ fn start_wakelock_thread() -> std::sync::mpsc::Sender<(usize, usize)> {
                         }
                     } else {
                         let mut display = remote_count > 0;
+                        #[cfg(windows)]
+                        if !crate::platform::k2k_keep_awake::wake_display() {
+                            display = false;
+                        }
                         if let Some(_w) = wakelock.as_mut() {
                             if display != last_display {
                                 #[cfg(any(target_os = "windows", target_os = "macos"))]
