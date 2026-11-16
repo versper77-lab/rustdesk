@@ -29,6 +29,9 @@ DB_PATH = os.path.join(KEYS_DIR, "keys.db")
 ADMIN_FILE = os.path.join(KEYS_DIR, "admin.json")
 ALLOW_FILE = os.path.join(DATA_DIR, "k2k_allow.txt")
 ENFORCE_FILE = os.path.join(DATA_DIR, "k2k_enforce")
+SERVER_OFF_FILE = os.path.join(DATA_DIR, "k2k_server_off")  # tells k2k-maint.sh not to restart them
+HOST_FILE = os.path.join(DATA_DIR, "k2k_host.json")  # written by k2k-host.sh (host cron)
+REBOOT_FILE = os.path.join(DATA_DIR, "k2k_reboot_request")
 BIND = os.environ.get("K2K_BIND", "127.0.0.1")
 PORT = int(os.environ.get("K2K_PORT", "8080"))
 DOCKER_SOCK = "/var/run/docker.sock"
@@ -170,6 +173,11 @@ def server_state():
 
 
 def set_server(on):
+    if on:
+        if os.path.exists(SERVER_OFF_FILE):
+            os.remove(SERVER_OFF_FILE)
+    else:
+        open(SERVER_OFF_FILE, "w").close()
     names = SERVER_CONTAINERS if on else tuple(reversed(SERVER_CONTAINERS))
     for name in names:
         code, data = docker("POST", "/containers/%s/%s" % (name, "start" if on else "stop?t=5"))
@@ -263,7 +271,14 @@ def usage():
         seen = c.execute("SELECT COUNT(*) n FROM devices WHERE last_seen >= ?", (now - 86400,)).fetchone()["n"]
         total = c.execute("SELECT COUNT(*) n FROM devices").fetchone()["n"]
     relay = relay_requests_since(today)
+    try:
+        with open(HOST_FILE) as f:
+            host = json.load(f)
+    except (OSError, ValueError):
+        host = None
     return {
+        "host": host,
+        "reboot_pending": os.path.exists(REBOOT_FILE),
         "server": server_state(),
         "load": os.getloadavg(),
         "cpus": os.cpu_count(),
@@ -309,12 +324,19 @@ function login(msg){$('#hdr').innerHTML='';$('#app').innerHTML=`<div class="card
  $('#lg').onclick=async()=>{const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json','X-K2K':'1'},body:JSON.stringify({password:$('#pw').value})});
   const j=await r.json().catch(()=>({}));if(r.ok)load();else login(j.error||'실패')};$('#pw').onkeydown=e=>{if(e.key=='Enter')$('#lg').click()}}
 const gb=b=>b>=1e12?(b/1e12).toFixed(2)+' TB':b>=1e9?(b/1e9).toFixed(2)+' GB':(b/1e6).toFixed(1)+' MB';
+function hostCard(u){const h=u.host;if(!h)return '<div class="card m">서버 업데이트 상태: 아직 정보 없음 (install-keys.sh 다시 실행 후 1분 뒤 표시)</div>';
+ const up=Math.floor((Date.now()/1000-h.boot)/86400);const need=h.reboot_required;
+ return `<div class="card"><div class="row" style="justify-content:space-between"><div><b>서버 보안 업데이트</b> <span class="pill ${need||h.security>0?'no':''}">${need?'재부팅 필요':h.security>0?'보안 업데이트 대기':'최신'}</span>
+ <div class="m">대기 중 업데이트 ${h.updates<0?'?':h.updates}개 (보안 ${h.security<0?'?':h.security}개) · 자동 설치 ${h.unattended=='enabled'?'켜짐':'꺼짐'} · 마지막 자동 설치 ${dt(h.last_upgrade)}</div>
+ <div class="m">${need?'재부팅해야 적용되는 업데이트: '+esc(h.reboot_pkgs||'-')+'<br>':''}자동 재부팅 ${h.auto_reboot?'켜짐 (필요할 때만 새벽 4:30)':'꺼짐'} · 서버 켜진 지 ${up}일 · 확인 ${dt(h.checked)}</div></div>
+ <button id="rb" class="${need?'':'ghost'}" ${u.reboot_pending?'disabled':''}>${u.reboot_pending?'재부팅 대기 중 (1분 안)':'서버 재부팅'}</button></div></div>`}
 async function usage(){const u=await api('/admin/api/usage');const on=u.server.every(x=>x.running),off=u.server.every(x=>x.running===false);
  const mx=Math.max(1,...u.days.map(d=>d.rx+d.tx));const pct=Math.min(100,u.month.tx*100/u.free_egress);
  let h=`<div class="card"><div class="row" style="justify-content:space-between"><div><b>원격 서버</b> <span class="pill ${on?'':'no'}">${on?'켜짐':off?'꺼짐':'일부만 켜짐'}</span>
  <div class="m">${u.server.map(x=>esc(x.name)+': '+(x.running?'실행 중 ('+new Date(x.started).toLocaleString('ko-KR')+'부터)':x.running===false?'중지':'상태 모름')).join(' · ')}</div>
  <div class="m">끄면 아무도 원격 접속할 수 없습니다(진행 중인 연결도 끊김). 이 관리 페이지는 계속 열립니다.</div></div>
  <button id="sv" class="${on?'red':''}">${on?'서버 끄기':'서버 켜기'}</button></div></div>
+ ${hostCard(u)}
  <div class="card"><b>사용량</b><table>
  <tr><td>오늘 트래픽</td><td>보냄 ${gb(u.today.tx)} · 받음 ${gb(u.today.rx)}</td></tr>
  <tr><td>이번 달 보낸 양</td><td>${gb(u.month.tx)} / 무료 ${gb(u.free_egress)} (${pct.toFixed(2)}%)</td></tr>
@@ -325,6 +347,7 @@ async function usage(){const u=await api('/admin/api/usage');const on=u.server.e
  <tr><td>디스크</td><td>${gb(u.disk_total-u.disk_free)} / ${gb(u.disk_total)}</td></tr></table>
  <div class="m" style="margin-top:10px">최근 14일 트래픽</div>${u.days.map(d=>`<div class="row" style="gap:6px;font-size:12px"><span style="width:44px">${d.d}</span><span style="height:10px;border-radius:5px;background:var(--a);width:${Math.max(2,(d.rx+d.tx)*70/mx)}%"></span><span class="m">${gb(d.rx+d.tx)}</span></div>`).join('')||'<div class="m">수집 중 (5분마다 기록)</div>'}</div>`;
  $('#usage').innerHTML=h;
+ const rb=$('#rb');if(rb)rb.onclick=async()=>{if(!confirm('서버를 재부팅할까요? 1~2분 동안 원격 접속과 이 페이지가 끊깁니다.'))return;await api('/admin/api/reboot',{});usage()};
  $('#sv').onclick=async()=>{if(!confirm(on?'서버를 끄면 모든 원격 접속이 끊기고 새로 접속할 수 없습니다. 끌까요?':'서버를 켤까요?'))return;$('#sv').disabled=true;$('#sv').textContent='처리 중...';try{await api('/admin/api/server',{on:!on})}finally{usage()}}}
 async function load(){const s=await api('/admin/api/state');
  $('#hdr').innerHTML='<button class="ghost" style="color:#fff;border-color:#fff" id="lo">로그아웃</button>';$('#lo').onclick=async()=>{await api('/admin/logout',{});login()};
@@ -488,6 +511,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json(500, {"error": "서버 제어 실패: %s" % e})
             return self.send_json(200, {"ok": True, "server": server_state()})
+        if u.path == "/admin/api/reboot":
+            if not os.path.exists(HOST_FILE):
+                return self.send_json(400, {"error": "서버 쪽 도우미(k2k-host.sh)가 설치되지 않았습니다"})
+            open(REBOOT_FILE, "w").close()
+            return self.send_json(200, {"ok": True})
         if u.path == "/admin/api/password":
             pw = str(body.get("password") or "")
             if len(pw) < 8:

@@ -22,6 +22,13 @@ mv bin/hbbs.new bin/hbbs
 curl -fsSL "$BASE/k2k-keys.py" -o k2k-keys.py
 curl -fsSL "$BASE/k2k-maint.sh" -o k2k-maint.sh
 chmod 755 k2k-maint.sh
+curl -fsSL "$BASE/k2k-host.sh" -o k2k-host.sh
+chmod 755 k2k-host.sh
+echo '* * * * * root /opt/k2k-server/k2k-host.sh >/dev/null 2>&1' > /etc/cron.d/k2k-host
+chmod 644 /etc/cron.d/k2k-host
+# security updates install daily by themselves; reboot only when one needs it, at 04:30 KST
+printf 'Unattended-Upgrade::Automatic-Reboot "true";\nUnattended-Upgrade::Automatic-Reboot-Time "19:30";\n' \
+  > /etc/apt/apt.conf.d/52k2k-auto-reboot
 
 cat > Caddyfile <<CADDY
 $HOST {
@@ -89,6 +96,7 @@ done
 netfilter-persistent save >/dev/null 2>&1 || true
 
 docker compose up -d --remove-orphans
+/opt/k2k-server/k2k-host.sh || true
 sleep 8
 docker compose ps --format '{{.Name}} {{.State}}'
 echo

@@ -8,6 +8,8 @@ cd /opt/k2k-server || exit 1
 
 for c in hbbs hbbr k2k-keys caddy memos; do
   grep -q "container_name: $c" docker-compose.yml || continue
+  # switched off on purpose from the admin page
+  case "$c" in hbbs|hbbr) [ -f data/k2k_server_off ] && continue ;; esac
   if [ "$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" != "true" ]; then
     docker compose up -d >/dev/null 2>&1
     echo "$(date -Is) restarted $c" >> status.log
