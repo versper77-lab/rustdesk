@@ -96,7 +96,7 @@ done
 netfilter-persistent save >/dev/null 2>&1 || true
 
 docker compose up -d --remove-orphans
-docker restart k2k-keys >/dev/null  # pick up a new k2k-keys.py even when the compose file is unchanged
+docker restart hbbs k2k-keys >/dev/null  # pick up a new hbbs / k2k-keys.py even when the compose file is unchanged
 /opt/k2k-server/k2k-host.sh || true
 sleep 8
 docker compose ps --format '{{.Name}} {{.State}}'
