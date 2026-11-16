@@ -121,6 +121,20 @@ pub fn default_bindings() -> Vec<Binding> {
     ]
 }
 
+/// K2K: shortcuts are on out of the box, with Ctrl+Shift+Z opening K2K's
+/// area/full capture (the chord the team already uses for screenshots).
+pub const K2K_CAPTURE: &str = "k2k_capture";
+
+fn k2k_default_bindings() -> Bindings {
+    let mut bindings = vec![Binding {
+        action: K2K_CAPTURE.into(),
+        mods: vec![Modifier::Primary, Modifier::Shift],
+        key: "z".into(),
+    }];
+    bindings.extend(default_bindings());
+    Bindings { enabled: true, pass_through: false, bindings }
+}
+
 /// Match a normalized (key, modifiers) pair against the given bindings.
 /// Returns the matched action ID, or None when the matcher is off
 /// (`enabled == false`), suspended (`pass_through == true`), or no binding
@@ -257,7 +271,7 @@ pub fn reload_from_config() {
 
 fn reload_from_raw(raw: &str, platform: &str, is_wayland: bool) {
     let mut parsed: Bindings = if raw.is_empty() {
-        Bindings::default()
+        k2k_default_bindings()
     } else {
         match serde_json::from_str(&raw) {
             Ok(parsed) => parsed,

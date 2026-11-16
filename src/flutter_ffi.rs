@@ -334,6 +334,16 @@ pub fn session_handle_screenshot(
     crate::client::screenshot::handle_screenshot(action)
 }
 
+/// K2K capture: puts a PNG (captured on this side from the remote image) on
+/// the local clipboard. Returns an error text, or "" on success.
+pub fn session_k2k_copy_png(
+    #[allow(unused_variables)] session_id: SessionID,
+    data: Vec<u8>,
+) -> String {
+    crate::client::screenshot::set_screenshot(data.into());
+    crate::client::screenshot::handle_screenshot("1".to_owned())
+}
+
 pub fn session_is_multi_ui_session(session_id: SessionID) -> SyncReturn<bool> {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         SyncReturn(session.is_multi_ui_session())

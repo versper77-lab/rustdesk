@@ -7,6 +7,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/shared_state.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/common/widgets/k2k_pick_window.dart';
+import 'package:flutter_hbb/common/widgets/k2k_capture.dart';
 import 'package:flutter_hbb/common/widgets/login.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
@@ -109,6 +110,7 @@ const _kToolbarOwnedActionIds = <String>[
   kShortcutActionScreenshot,
   kShortcutActionResetCanvas,
   kShortcutActionSendClipboardKeystrokes,
+  kShortcutActionK2kCapture,
 ];
 
 const _kToolbarViewStyleActionIds = <String>[
@@ -787,6 +789,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
         actionId: kShortcutActionScreenshot,
       ));
     }
+  }
+  // K2K: area / full capture of the remote screen (Ctrl+Shift+Z)
+  if (isDesktop) {
+    v.add(TTextMenu(
+      child: Text('${translate('k2k_capture')} (Ctrl+Shift+Z)'),
+      onPressed: () => k2kCapture(context, ffi),
+      actionId: kShortcutActionK2kCapture,
+    ));
   }
   // fingerprint
   if (!(isDesktop || isWebDesktop)) {

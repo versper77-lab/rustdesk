@@ -319,5 +319,10 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("k2k_update_failed", "Update failed"),
         ("k2k_keep_awake", "Keep this PC awake for remote access"),
         ("k2k_up_to_date", "up to date"),
+        ("k2k_capture", "Capture screen (area/full)"),
+        ("k2k_capture_hint", "Drag to select an area"),
+        ("k2k_capture_full", "Full capture"),
+        ("k2k_capture_done", "Capture copied to clipboard"),
+        ("k2k_capture_no_image", "No remote screen yet"),
     ].iter().cloned().collect();
 }
