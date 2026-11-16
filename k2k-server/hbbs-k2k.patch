@@ -1,9 +1,9 @@
 diff --git a/src/k2k_allow.rs b/src/k2k_allow.rs
 new file mode 100644
-index 0000000..38c025a
+index 0000000..98b5a9b
 --- /dev/null
 +++ b/src/k2k_allow.rs
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,77 @@
 +//! K2K: only devices activated with a K2K key may register.
 +//!
 +//! The K2K key service writes the activated device IDs to `k2k_allow.txt`
@@ -71,6 +71,10 @@ index 0000000..38c025a
 +
 +/// Whether `id` may register with this server.
 +pub fn allowed(id: &str) -> bool {
++    // hbbs registers this ID against itself at startup and exits if it gets no answer
++    if id == "(:test_hbbs:)" {
++        return true;
++    }
 +    reload_if_due();
 +    STATE
 +        .read()
