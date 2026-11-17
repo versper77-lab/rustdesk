@@ -12,6 +12,8 @@ const String _kK2kLatestApi =
     'https://api.github.com/repos/versper77-lab/rustdesk/releases/latest';
 const String kK2kDownloadPage =
     'https://github.com/versper77-lab/rustdesk/releases/latest';
+const String _kK2kChangelog =
+    'https://raw.githubusercontent.com/versper77-lab/rustdesk/k2k/k2k-changelog.json';
 const String _kK2kWindowsZip =
     'https://github.com/versper77-lab/rustdesk/releases/latest/download/K2K-windows-x64.zip';
 
@@ -154,7 +156,9 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
     if (_closed || latest == null || latest <= _current) {
       // Always show which K2K build is running.
       if (_current <= 0) return const SizedBox.shrink();
-      return Padding(
+      return InkWell(
+        onTap: () => showK2kChangelog(context, _current),
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 8, 14, 10),
         child: Text(
           latest != null && latest <= _current
@@ -163,7 +167,10 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
           style: TextStyle(
               fontSize: 12,
               color: Theme.of(context).textTheme.bodySmall?.color
-                  ?.withOpacity(0.7)),
+                  ?.withOpacity(0.7),
+              decoration: TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.dotted),
+        ),
         ),
       );
     }
@@ -211,16 +218,106 @@ class _K2kUpdateCardState extends State<K2kUpdateCard> {
               padding: const EdgeInsets.only(left: 26, top: 4),
               child: Text(_status!, style: const TextStyle(fontSize: 12)),
             ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => showK2kChangelog(context, _current),
+                child: Text(translate('k2k_changelog')),
+              ),
+              TextButton.icon(
               icon: const Icon(Icons.download_rounded, size: 16),
               label: Text(translate(isWindows ? 'k2k_update_now' : 'Download')),
               onPressed: _busy ? null : _update,
             ),
+            ],
           ),
         ],
       ),
     );
   }
 }
+
+/// Shows what changed in each K2K build (newest first). Builds newer than
+/// [current] are marked as not installed yet.
+Future<void> showK2kChangelog(BuildContext context, int current) async {
+  List<dynamic>? entries;
+  try {
+    final resp = await http
+        .get(Uri.parse(_kK2kChangelog))
+        .timeout(const Duration(seconds: 10));
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(utf8.decode(resp.bodyBytes));
+      if (body is List) entries = body;
+    }
+  } catch (e) {
+    debugPrint('K2K changelog fetch failed: $e');
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(translate('k2k_changelog')),
+      content: SizedBox(
+        width: 460,
+        height: 420,
+        child: entries == null
+            ? Center(child: Text(translate('k2k_changelog_failed')))
+            : ListView(
+                children: [
+                  for (final e in entries!)
+                    if (e is Map)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Text('b${e['b']}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              const SizedBox(width: 8),
+                              Text('${e['date'] ?? ''}',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(ctx).hintColor)),
+                              const SizedBox(width: 8),
+                              if (e['b'] is int && e['b'] == current)
+                                _k2kTag(translate('k2k_changelog_current'),
+                                    MyTheme.accent),
+                              if (e['b'] is int && (e['b'] as int) > current)
+                                _k2kTag(translate('k2k_changelog_new'),
+                                    Colors.orange),
+                            ]),
+                            const SizedBox(height: 4),
+                            for (final item in (e['items'] as List? ?? []))
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 6, top: 2),
+                                child: Text('• $item',
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(translate('Close')),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _k2kTag(String text, Color color) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 11, color: color)),
+    );
