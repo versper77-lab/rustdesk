@@ -7021,6 +7021,11 @@ mod raii {
                 .lock()
                 .unwrap()
                 .send((conn_count, remote_count)));
+            #[cfg(windows)]
+            crate::platform::k2k_monitor::on_remote_count(
+                remote_count,
+                !crate::platform::k2k_keep_awake::wake_display(),
+            );
         }
 
         pub fn check_wake_lock_on_setting_changed() {

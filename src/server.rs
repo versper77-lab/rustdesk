@@ -683,6 +683,8 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         base::platform::windows::start_cpu_performance_monitor();
         #[cfg(windows)]
         crate::platform::k2k_keep_awake::start();
+        #[cfg(windows)]
+        crate::platform::k2k_monitor::start();
     });
 
     if is_server {

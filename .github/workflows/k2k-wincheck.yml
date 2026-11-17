@@ -11,6 +11,7 @@ on:
       - "src/platform/k2k_window.rs"
       - "src/platform/k2k_local_input.rs"
       - "src/platform/k2k_post_input.rs"
+      - "src/platform/k2k_monitor.rs"
       - "tools/k2k-wincheck/**"
       - ".github/workflows/k2k-wincheck.yml"
 

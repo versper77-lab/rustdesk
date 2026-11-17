@@ -22,6 +22,8 @@ pub mod k2k_post_input;
 
 #[cfg(windows)]
 pub mod k2k_keep_awake;
+#[cfg(windows)]
+pub mod k2k_monitor;
 
 #[cfg(target_os = "macos")]
 pub mod macos;
