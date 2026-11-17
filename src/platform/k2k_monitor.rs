@@ -41,7 +41,11 @@ unsafe extern "system" fn on_power(
         let s = &*(setting as *const POWERBROADCAST_SETTING);
         if s.PowerSetting == GUID_CONSOLE_DISPLAY_STATE && s.DataLength >= 4 {
             let v = std::ptr::read_unaligned(s.Data.as_ptr() as *const u32);
-            DISPLAY_STATE.store(v, Ordering::SeqCst);
+            let prev = DISPLAY_STATE.swap(v, Ordering::SeqCst);
+            if prev != v {
+                // Pairs with the session log to show which step wakes the display.
+                log::info!("K2K display state: {} -> {} (0=off 1=on 2=dim)", prev as i64, v);
+            }
         }
     }
     0
@@ -101,6 +105,7 @@ pub fn on_remote_count(count: usize, enabled: bool) {
                     break;
                 }
                 if DISPLAY_STATE.load(Ordering::SeqCst) != 0 {
+                    log::info!("K2K: display woke at session start, switching it off again");
                     monitor_off();
                     break;
                 }
