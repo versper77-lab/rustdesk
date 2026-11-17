@@ -14,7 +14,7 @@ use windows::{
     Win32::{
         Foundation::{HANDLE, HWND, LPARAM, WPARAM},
         System::Power::{
-            PowerSettingRegisterNotification, DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS, HPOWERNOTIFY,
+            PowerSettingRegisterNotification, DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS,
             POWERBROADCAST_SETTING,
         },
         UI::WindowsAndMessaging::{
@@ -55,7 +55,7 @@ pub fn start() {
             Callback: Some(on_power),
             Context: std::ptr::null_mut(),
         }));
-        let mut handle = HPOWERNOTIFY::default();
+        let mut handle: *mut core::ffi::c_void = std::ptr::null_mut();
         let _ = PowerSettingRegisterNotification(
             &GUID_CONSOLE_DISPLAY_STATE,
             DEVICE_NOTIFY_CALLBACK,
