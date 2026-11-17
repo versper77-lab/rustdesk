@@ -6573,11 +6573,6 @@ async fn start_ipc(
 
 // in case screen is sleep and blank, here to activate it
 fn try_activate_screen() {
-    // K2K: like AnyDesk, do not nudge the mouse (it wakes a monitor that is off)
-    #[cfg(windows)]
-    if !crate::platform::k2k_keep_awake::wake_display() {
-        return;
-    }
     #[cfg(windows)]
     std::thread::spawn(|| {
         mouse_move_relative(-6, -6);
