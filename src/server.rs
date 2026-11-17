@@ -684,7 +684,7 @@ pub async fn start_server(is_server: bool, no_server: bool) {
         #[cfg(windows)]
         crate::platform::k2k_keep_awake::start();
         #[cfg(windows)]
-        crate::platform::k2k_monitor::start();
+        crate::platform::k2k_monitor::start(|m| hbb_common::log::info!("{}", m));
     });
 
     if is_server {

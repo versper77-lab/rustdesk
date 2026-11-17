@@ -5,7 +5,7 @@
 use std::{
     sync::{
         atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
-        Once,
+        Once, OnceLock,
     },
     time::Duration,
 };
@@ -31,6 +31,13 @@ const STATE_UNKNOWN: u32 = u32::MAX;
 static DISPLAY_STATE: AtomicU32 = AtomicU32::new(STATE_UNKNOWN);
 static REMOTE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static TURNING_OFF: AtomicBool = AtomicBool::new(false);
+static LOG: OnceLock<fn(&str)> = OnceLock::new();
+
+fn info(msg: &str) {
+    if let Some(log) = LOG.get() {
+        log(msg);
+    }
+}
 
 unsafe extern "system" fn on_power(
     _context: *const core::ffi::c_void,
@@ -44,7 +51,7 @@ unsafe extern "system" fn on_power(
             let prev = DISPLAY_STATE.swap(v, Ordering::SeqCst);
             if prev != v {
                 // Pairs with the session log to show which step wakes the display.
-                log::info!("K2K display state: {} -> {} (0=off 1=on 2=dim)", prev as i64, v);
+                info(&format!("K2K display state: {} -> {} (0=off 1=on 2=dim)", prev as i64, v));
             }
         }
     }
@@ -52,7 +59,8 @@ unsafe extern "system" fn on_power(
 }
 
 /// Starts following the display state (once per process).
-pub fn start() {
+pub fn start(log: fn(&str)) {
+    let _ = LOG.set(log);
     static ONCE: Once = Once::new();
     ONCE.call_once(|| unsafe {
         let params = Box::leak(Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
@@ -105,7 +113,7 @@ pub fn on_remote_count(count: usize, enabled: bool) {
                     break;
                 }
                 if DISPLAY_STATE.load(Ordering::SeqCst) != 0 {
-                    log::info!("K2K: display woke at session start, switching it off again");
+                    info("K2K: display woke at session start, switching it off again");
                     monitor_off();
                     break;
                 }
