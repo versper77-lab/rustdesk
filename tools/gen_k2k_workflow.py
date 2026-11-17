@@ -95,6 +95,8 @@ header = [
     "  push:",
     "    branches:",
     "      - k2k",
+    "    paths-ignore:",
+    "      - k2k-changelog.json",
     "",
     "concurrency:",
     "  group: k2k-build-${{ github.ref }}",
